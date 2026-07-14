@@ -1,0 +1,169 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release artifacts
+    runs-on: ubuntu-latest
+    outputs:
+      node-version: ${{ steps.node-version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Read Node.js version
+        id: node-version
+        run: echo "version=$(cat .node-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@2dec1e33f4ab2c6d5bce1b0c4607961bb1a3f7a1 # v1
+        with:
+          version: 0.2.4
+          node-version: ${{ steps.node-version.outputs.version }}
+          sfw: true
+          cache: false
+          run-install: |
+            - args: ['--frozen-lockfile']
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
+        with:
+          enable-cache: true
+          python-version-file: .python-version
+
+      - name: Install Python workspace
+        run: uv sync --frozen
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          npm_version="$(node -p "require('./packages/vite/package.json').version")"
+          pypi_version="$(uv run python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("packages/widget/pyproject.toml").read_text())["project"]["version"])')"
+          test "$version" = "$npm_version"
+          test "$version" = "$pypi_version"
+
+      - name: Verify workspace
+        run: pnpm ready
+
+      - name: Pack npm package
+        run: pnpm --filter anywidget-bundle pack --pack-destination dist/npm
+
+      - name: Verify packed packages
+        shell: bash
+        run: |
+          tarball="$(find dist/npm -name 'anywidget-bundle-*.tgz' -print -quit)"
+          wheel="$(find dist/python -name 'anywidget_bundle-*.whl' -print -quit)"
+          sdist="$(find dist/python -name 'anywidget_bundle-*.tar.gz' -print -quit)"
+          test -n "$tarball"
+          test -n "$wheel"
+          test -n "$sdist"
+          uvx twine check dist/python/*
+          unzip -l "$wheel" > "$RUNNER_TEMP/wheel-files.txt"
+          grep -q '.dist-info/licenses/LICENSE' "$RUNNER_TEMP/wheel-files.txt"
+          tar -tzf "$sdist" > "$RUNNER_TEMP/sdist-files.txt"
+          grep -q '/LICENSE' "$RUNNER_TEMP/sdist-files.txt"
+          uv run --isolated --no-project --with "$wheel" python -c 'import anywidget_bundle; from importlib.metadata import version; assert version("anywidget-bundle")'
+          npm_dir="$RUNNER_TEMP/anywidget-bundle-npm"
+          mkdir -p "$npm_dir"
+          npm install --prefix "$npm_dir" --ignore-scripts --no-audit --no-fund "$(pwd)/$tarball" vite@8
+          cd "$npm_dir"
+          node --input-type=module -e 'import plugin, { anywidgetBundle } from "anywidget-bundle"; import { createRequire } from "node:module"; const pkg = createRequire(import.meta.url)("anywidget-bundle/package.json"); if (plugin !== anywidgetBundle || pkg.repository?.url !== "git+https://github.com/peter-gy/anywidget-bundle.git") process.exit(1)'
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-packages
+          path: |
+            dist/npm/anywidget-bundle-*.tgz
+            dist/python/anywidget_bundle-*.whl
+            dist/python/anywidget_bundle-*.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  publish-npm:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/anywidget-bundle
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ needs.build.outputs.node-version }}
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-packages
+          path: dist
+
+      - name: Publish npm package
+        run: npx --yes npm@11.12.1 publish --access public dist/npm/anywidget-bundle-*.tgz
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/anywidget-bundle/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-packages
+          path: dist
+
+      - name: Publish Python package
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/python
+
+  release-notes:
+    name: Update release notes
+    needs: [publish-npm, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Read Node.js version
+        id: node-version
+        run: echo "version=$(cat .node-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+          package-manager-cache: false
+
+      - name: Update release notes
+        run: npx changelogithub@14.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

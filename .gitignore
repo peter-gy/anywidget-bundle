@@ -1,0 +1,12 @@
+.DS_Store
+.venv/
+**/.vitepress/cache/
+**/.vitepress/dist/
+**/dist/
+**/node_modules/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ty/
+.pyrefly/

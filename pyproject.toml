@@ -1,0 +1,24 @@
+[tool.uv]
+required-version = ">=0.8.0"
+
+[tool.uv.workspace]
+members = ["packages/widget"]
+
+[dependency-groups]
+dev = ["pyrefly>=1", "pytest>=9.0.3", "ruff>=0.15.14", "ty>=0.0.39"]
+
+[tool.pyrefly]
+project-includes = ["packages/widget/src", "packages/widget/tests"]
+search-path = ["packages/widget/src"]
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "--strict-markers"]
+testpaths = ["packages/widget/tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["packages/widget/src", "packages/widget/tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]

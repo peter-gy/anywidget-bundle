@@ -1,0 +1,27 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalogMode: prefer
+
+catalog:
+  "@anywidget/types": ^0.4.0
+  "@types/node": ^22.20.1
+  es-module-lexer: ^2.3.0
+  jsdom: 29.1.1
+  typescript: ^6.0.3
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.4
+  vite-plus: 0.2.4
+  vite-standard: npm:vite@^8.0.0
+  vitepress: ^1.6.3
+  vue: ^3.5.13
+
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+
+overrides:
+  vite: "catalog:"
+  vitepress>vite: ^5.4.0
+
+allowBuilds:
+  esbuild: true
