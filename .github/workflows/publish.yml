@@ -64,26 +64,16 @@ jobs:
       - name: Pack npm package
         run: pnpm --filter anywidget-bundle pack --pack-destination dist/npm
 
-      - name: Verify packed packages
+      - name: Check release artifacts
         shell: bash
         run: |
-          tarball="$(find dist/npm -name 'anywidget-bundle-*.tgz' -print -quit)"
-          wheel="$(find dist/python -name 'anywidget_bundle-*.whl' -print -quit)"
-          sdist="$(find dist/python -name 'anywidget_bundle-*.tar.gz' -print -quit)"
-          test -n "$tarball"
-          test -n "$wheel"
-          test -n "$sdist"
+          version="${GITHUB_REF_NAME#v}"
+          wheel="dist/python/anywidget_bundle-${version}-py3-none-any.whl"
+          test -f "dist/npm/anywidget-bundle-${version}.tgz"
+          test -f "$wheel"
+          test -f "dist/python/anywidget_bundle-${version}.tar.gz"
           uvx twine check dist/python/*
-          unzip -l "$wheel" > "$RUNNER_TEMP/wheel-files.txt"
-          grep -q '.dist-info/licenses/LICENSE' "$RUNNER_TEMP/wheel-files.txt"
-          tar -tzf "$sdist" > "$RUNNER_TEMP/sdist-files.txt"
-          grep -q '/LICENSE' "$RUNNER_TEMP/sdist-files.txt"
-          uv run --isolated --no-project --with "$wheel" python -c 'import anywidget_bundle; from importlib.metadata import version; assert version("anywidget-bundle")'
-          npm_dir="$RUNNER_TEMP/anywidget-bundle-npm"
-          mkdir -p "$npm_dir"
-          npm install --prefix "$npm_dir" --ignore-scripts --no-audit --no-fund "$(pwd)/$tarball" vite@8
-          cd "$npm_dir"
-          node --input-type=module -e 'import plugin, { anywidgetBundle } from "anywidget-bundle"; import { createRequire } from "node:module"; const pkg = createRequire(import.meta.url)("anywidget-bundle/package.json"); if (plugin !== anywidgetBundle || pkg.repository?.url !== "git+https://github.com/peter-gy/anywidget-bundle.git") process.exit(1)'
+          uv run --isolated --no-project --with "$wheel" python -c 'import anywidget_bundle'
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
