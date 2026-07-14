@@ -28,13 +28,14 @@ pnpm exec vp run -t @anywidget-bundle/docs#dev
 
 ## Validation by change
 
-| Change           | Required evidence                                         |
-| ---------------- | --------------------------------------------------------- |
-| Vite plugin      | Built fixture, final file list, imported `index.js`       |
-| AFM typing       | Object, sync factory, async factory, and exports coverage |
-| Python loader    | pytest with real artifacts and error paths                |
-| Package metadata | npm tarball and wheel contents, isolated imports          |
-| Documentation    | Production base-path build and browser smoke test         |
-| Workflow         | Local commands match workflow commands and artifact paths |
+| Change           | Required evidence                                           |
+| ---------------- | ----------------------------------------------------------- |
+| Vite plugin      | Built fixture, manifest graph, bootstrap, and imported app  |
+| AFM typing       | Object, sync factory, async factory, and cleanup coverage   |
+| Module runtime   | Request correlation, import rewriting, caching, and cleanup |
+| Python loader    | Manifest, allowlist, binary response, and error-path tests  |
+| Package metadata | npm tarball and loader wheel contents, isolated imports     |
+| Documentation    | Production base-path build and browser smoke test           |
+| Workflow         | Local commands match workflow commands and artifact paths   |
 
 Build output belongs under `dist` and package-local VitePress output. These paths stay untracked.

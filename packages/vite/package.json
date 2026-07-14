@@ -1,7 +1,7 @@
 {
   "name": "anywidget-bundle",
   "version": "0.0.1",
-  "description": "Build self-contained anywidget modules with Vite.",
+  "description": "Build manifest-backed anywidget module graphs with Vite.",
   "keywords": [
     "anywidget",
     "jupyter",

@@ -6,7 +6,7 @@ export default defineConfig({
       neverBundle: ["vite"],
     },
     dts: true,
-    entry: ["src/index.ts", "src/build.ts"],
+    entry: ["src/index.ts", "src/build.ts", "src/app-entry.ts", "src/dev.ts"],
     format: ["esm"],
     outExtensions: () => ({ dts: ".d.ts", js: ".js" }),
     platform: "node",
@@ -14,7 +14,7 @@ export default defineConfig({
     target: "node20",
   },
   test: {
-    environment: "node",
+    environment: "jsdom",
     include: ["tests/**/*.test.ts"],
   },
 });

@@ -1,22 +1,48 @@
 import { existsSync, realpathSync } from "node:fs";
-import { rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
-import { ImportType, init, parse } from "es-module-lexer/minimal";
 import { normalizePath, type Plugin, type UserConfig } from "vite";
+
+import {
+  artifactPathsConflict,
+  isJavaScriptArtifactPath,
+  isStylesheetArtifactPath,
+  javascriptExtension,
+} from "./artifact-path";
+
+export type AnyWidgetBundleOutputOptions = {
+  entry?: string;
+  app?: string;
+  style?: string;
+};
 
 export type AnyWidgetBundleOptions = {
   app: string;
   outDir: string;
   devEntry?: string;
+  output?: AnyWidgetBundleOutputOptions;
 };
 
-type ResolvedOptions = Required<AnyWidgetBundleOptions>;
+type BundleManifest = {
+  version: 1;
+  entry: string;
+  style: string | null;
+  app: string;
+  modules: string[];
+};
+
+type BundleOptions = {
+  app: string;
+  outDir: string;
+  devEntry: string;
+  output: Required<AnyWidgetBundleOutputOptions>;
+  chunkFileNames: string;
+};
 
 type ChunkInfo = {
   type: "chunk";
   fileName: string;
+  code: string;
   imports: string[];
   dynamicImports: string[];
 };
@@ -26,165 +52,285 @@ type AssetInfo = {
   fileName: string;
 };
 
+const DEV_RUNTIME_ID = "virtual:anywidget-bundle/dev-runtime";
+const ENTRY_NAME = "index";
+const APP_ENTRY_NAME = "app";
+const MANIFEST_FILE = "anywidget.json";
 const DEFAULT_DEV_ENTRY = "/@anywidget-bundle/entry";
 const BUILD_APP_ID = "virtual:anywidget-bundle/app";
-const ENTRY_FILE = "index.js";
-const STYLE_FILE = "widget.css";
 const VITE_ID_PREFIX = "/@id/";
 const VITE_NULL_BYTE = "__x00__";
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:\//;
+const DEV_ENTRY_SEGMENT = /^[A-Za-z0-9._@-]+$/;
+const DEFAULT_OUTPUT = {
+  entry: "index.js",
+  app: "chunks/app.js",
+  style: "widget.css",
+} as const;
 
 export default function anywidgetBundle(rawOptions: AnyWidgetBundleOptions): Plugin {
   const options = resolveOptions(rawOptions);
+  return bundlePlugin(options);
+}
+
+function bundlePlugin(options: BundleOptions): Plugin {
   let command: "build" | "serve" = "build";
   let root = process.cwd();
-  let outputDir = resolve(root, options.outDir);
-  let appId = options.app;
+  let buildAppId = options.app;
   const resolvedDevEntryId = `\0virtual:anywidget-bundle/dev-entry:${options.devEntry}`;
+  // Generated source imports a browser-form ID. Keep the resolver's original
+  // ID so virtual and out-of-root apps re-enter Vite through the same module.
   const developmentAppIds = new Map<string, string>();
-
   return {
     name: "anywidget-bundle",
-    config(_config, environment) {
-      command = environment.command;
-      return environment.command === "build"
-        ? buildConfig(options, runtimeSourcePath("build"))
-        : undefined;
+    config(_config, env) {
+      command = env.command;
+      return bundleConfig(options, env.command);
     },
     configResolved(config) {
-      validateOutDir(config.root, options.outDir);
+      // Other config hooks can replace the plugin's build.outDir. Validate the
+      // final Vite value before emptyOutDir can remove existing files.
+      validateOutDir(config.root, config.build.outDir);
       root = config.root;
-      outputDir = resolve(root, options.outDir);
     },
     async buildStart() {
-      appId = await resolveAppImport(this, options.app);
-      validateResolvedAppImport(appId);
+      if (command !== "build") return;
+      buildAppId = await resolveAppImport(this, options.app);
+      validateResolvedAppImport(buildAppId);
     },
     resolveId(id) {
-      if (id === BUILD_APP_ID) return appId;
+      if (id === DEV_RUNTIME_ID) return runtimeSourcePath("dev");
+      if (id === BUILD_APP_ID) return buildAppId;
       if (isDevelopmentEntryRequest(id, options.devEntry)) return resolvedDevEntryId;
-      return developmentAppIds.get(id) ?? null;
+      const appId = developmentAppIds.get(id);
+      if (appId) return appId;
+      return null;
     },
     async load(id) {
-      if (id === runtimeSourcePath("build")) {
+      if (id === runtimeSourcePath("app-entry")) {
+        // Keep package, alias, and virtual app IDs in Vite's normal import
+        // pipeline while exposing a stable library entry name.
         return `export { default } from ${JSON.stringify(BUILD_APP_ID)};`;
       }
-      if (id !== resolvedDevEntryId) return null;
-
-      const resolved = await resolveAppImport(this, options.app);
-      validateResolvedAppImport(resolved);
-      const browserId = browserImport(resolved, root);
-      developmentAppIds.clear();
-      developmentAppIds.set(browserId, resolved);
-      return `import "/@vite/client";
-import app from ${JSON.stringify(browserId)};
-if (import.meta.hot) import.meta.hot.accept(${JSON.stringify(browserId)}, () => window.location.reload());
-export default app;`;
+      if (id === resolvedDevEntryId) {
+        const app = await resolveAppImport(this, options.app);
+        validateResolvedAppImport(app);
+        const browserApp = browserImport(app, root);
+        developmentAppIds.clear();
+        developmentAppIds.set(browserApp, app);
+        return developmentEntrySource(browserApp);
+      }
+      return null;
     },
+    // Run late so the manifest reflects the generated chunk graph. Python
+    // treats its module list as the runtime read allowlist.
     generateBundle: {
       order: "post",
-      async handler(_output, bundle) {
+      handler(_output, bundle) {
         if (command !== "build") return;
+        const fail = (message: string): never => this.error(message);
         const chunks = Object.values(bundle).filter(
           (item): item is typeof item & ChunkInfo => item.type === "chunk",
         );
+        const entry = chunks.find((chunk) => chunk.fileName === options.output.entry);
+        const app = chunks.find((chunk) => chunk.fileName === options.output.app);
+        if (!entry) this.error(`Missing generated anywidget entry ${options.output.entry}.`);
+        if (!app) this.error(`Missing generated anywidget app ${options.output.app}.`);
+        // anywidget evaluates entry from _esm. App and other chunks are fetched
+        // through Python, so entry must remain self-contained.
+        if (entry.imports.length || entry.dynamicImports.length) {
+          this.error("The generated anywidget entry must be self-contained.");
+        }
+
+        const modules = chunks
+          .filter((chunk) => chunk.fileName !== options.output.entry)
+          .map((chunk) => chunk.fileName)
+          .sort((left, right) =>
+            left === options.output.app
+              ? -1
+              : right === options.output.app
+                ? 1
+                : left.localeCompare(right),
+          );
+        validateModuleFiles(fail, modules, options.output.app);
+        validateChunkReferences(fail, chunks, new Set(modules));
+        validateStaticGraph(fail, chunks, new Set(modules));
+
         const assets = Object.values(bundle).filter(
           (item): item is typeof item & AssetInfo => item.type === "asset",
         );
-
-        if (chunks.length !== 1 || chunks[0]?.fileName !== ENTRY_FILE) {
-          this.error(`anywidget bundle must emit exactly one ${ENTRY_FILE}.`);
+        const style = validateAssets(fail, assets, options.output.style);
+        const artifacts = [
+          MANIFEST_FILE,
+          options.output.entry,
+          ...modules,
+          ...(style ? [style] : []),
+        ];
+        if (artifactPathsConflict(artifacts)) {
+          this.error("Generated anywidget bundle artifact paths must not collide.");
         }
-        for (const specifier of [...chunks[0].imports, ...chunks[0].dynamicImports]) {
-          if (specifier !== ENTRY_FILE && !isWebImport(specifier)) {
-            this.error(`anywidget bundle contains unresolved import ${specifier}.`);
-          }
-        }
-        if (assets.length > 1 || (assets.length === 1 && assets[0]?.fileName !== STYLE_FILE)) {
-          this.error(`anywidget bundle may emit ${ENTRY_FILE} and optional ${STYLE_FILE}.`);
-        }
-
-        await init;
-        const [imports] = parse(chunks[0].code, ENTRY_FILE);
-        for (const specifier of imports) {
-          if (specifier.t === ImportType.ImportMeta) continue;
-          if (specifier.t === ImportType.Dynamic && specifier.n === undefined) {
-            continue;
-          }
-          if (specifier.n === undefined || !isWebImport(specifier.n)) {
-            this.error(
-              `anywidget bundle contains unresolved import ${specifier.n ?? "expression"}.`,
-            );
-          }
-        }
-
-        chunks[0].code = compressedEntry(chunks[0].code);
+        const manifest: BundleManifest = {
+          version: 1,
+          entry: options.output.entry,
+          style,
+          app: options.output.app,
+          modules,
+        };
+        this.emitFile({
+          type: "asset",
+          fileName: MANIFEST_FILE,
+          source: `${JSON.stringify(manifest, null, 2)}\n`,
+        });
       },
-    },
-    async writeBundle(_output, bundle) {
-      if (
-        command === "build" &&
-        !Object.values(bundle).some((item) => item.type === "asset" && item.fileName === STYLE_FILE)
-      ) {
-        await rm(join(outputDir, STYLE_FILE), { force: true });
-      }
     },
   };
 }
 
-function buildConfig(options: ResolvedOptions, entry: string): UserConfig {
+function bundleConfig(options: BundleOptions, command: "build" | "serve"): UserConfig {
   return {
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(command === "serve" ? "development" : "production"),
+      __ANYWIDGET_BUNDLE_APP_MODULE__: JSON.stringify(options.output.app),
+    },
     build: {
-      assetsInlineLimit: Number.MAX_SAFE_INTEGER,
-      copyPublicDir: false,
-      cssCodeSplit: false,
+      outDir: options.outDir,
+      emptyOutDir: true,
+      target: "esnext",
       lib: {
+        // Build the bootstrap and app as separate roots. The bootstrap loads the
+        // Python-served app graph through the module protocol.
+        entry: {
+          [ENTRY_NAME]: runtimeSourcePath("build"),
+          [APP_ENTRY_NAME]: runtimeSourcePath("app-entry"),
+        },
         cssFileName: "widget",
-        entry,
         formats: ["es"],
       },
-      outDir: options.outDir,
+      copyPublicDir: false,
+      // The module protocol serves JavaScript. Inline other assets and collapse
+      // CSS into the single stylesheet exposed through anywidget.
+      cssCodeSplit: false,
+      assetsInlineLimit: Number.MAX_SAFE_INTEGER,
       rollupOptions: {
         output: {
-          assetFileNames: STYLE_FILE,
-          codeSplitting: false,
-          entryFileNames: ENTRY_FILE,
+          entryFileNames: (chunk) =>
+            chunk.name === ENTRY_NAME ? options.output.entry : options.output.app,
+          chunkFileNames: options.chunkFileNames,
+          assetFileNames: (asset) =>
+            (asset.names?.[0] ?? asset.name ?? "").endsWith(".css")
+              ? options.output.style
+              : "assets/[name]-[hash][extname]",
         },
       },
-      sourcemap: false,
-      target: "es2022",
     },
   };
 }
 
-function compressedEntry(source: string): string {
-  const payload = gzipSync(source, { level: 9 }).toString("base64");
-  return `const payload=${JSON.stringify(payload)};
-let modulePromise;
-async function loadModule(){
-  return modulePromise??=(async()=>{
-    const binary=atob(payload);
-    const bytes=new Uint8Array(binary.length);
-    for(let index=0;index<binary.length;index+=1)bytes[index]=binary.charCodeAt(index);
-    const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-    const source=await new Response(stream).text();
-    const url=URL.createObjectURL(new Blob([source],{type:"text/javascript"}));
-    try{return await import(url);}finally{URL.revokeObjectURL(url);}
-  })();
-}
-export default async function createWidget(){
-  const module=await loadModule();
-  if(!Object.hasOwn(module,"default"))throw new Error("anywidget bundle app must export a default widget definition.");
-  const widget=module.default;
-  return typeof widget==="function"?await widget():widget;
-}
-`;
+function developmentEntrySource(app: string): string {
+  return `
+		import { createAnyWidgetBundleDevelopmentEntry } from ${JSON.stringify(DEV_RUNTIME_ID)};
+		import app from ${JSON.stringify(app)};
+		const entry = createAnyWidgetBundleDevelopmentEntry(app);
+		if (import.meta.hot) {
+			const hot = import.meta.hot;
+			const invalidate = (error) => {
+				console.error("Anywidget bundle hot update failed.", error);
+				hot.invalidate("Anywidget bundle hot update failed.");
+			};
+			import.meta.hot.accept(${JSON.stringify(app)}, (module) => {
+				if (!module || !("default" in module)) {
+					invalidate(new Error("Anywidget bundle app must have a default export."));
+					return;
+				}
+				void entry.update(module.default).catch(invalidate);
+			});
+			import.meta.hot.dispose(() =>
+				entry.dispose().catch((error) => {
+					console.error("Anywidget bundle hot disposal failed.", error);
+				}),
+			);
+		}
+		export default entry.widget;
+	`;
 }
 
-function resolveOptions(options: AnyWidgetBundleOptions): ResolvedOptions {
+function validateModuleFiles(
+  error: (message: string) => never,
+  modules: readonly string[],
+  app: string,
+): void {
+  if (!modules.includes(app)) error(`Bundle modules must include ${app}.`);
+  for (const path of modules) {
+    if (!isJavaScriptArtifactPath(path)) {
+      error(`Unsupported anywidget bundle module path ${path}.`);
+    }
+  }
+}
+
+function validateChunkReferences(
+  error: (message: string) => never,
+  chunks: readonly ChunkInfo[],
+  modules: ReadonlySet<string>,
+): void {
+  for (const chunk of chunks) {
+    if (!modules.has(chunk.fileName)) continue;
+    for (const dependency of [...chunk.imports, ...chunk.dynamicImports]) {
+      if (!modules.has(dependency) && !isUrlImport(dependency)) {
+        error(`Bundle module ${chunk.fileName} references unsupported module ${dependency}.`);
+      }
+    }
+  }
+}
+
+function isUrlImport(specifier: string): boolean {
+  return specifier.startsWith("https://") || specifier.startsWith("http://");
+}
+
+function validateStaticGraph(
+  error: (message: string) => never,
+  chunks: readonly ChunkInfo[],
+  modules: ReadonlySet<string>,
+): void {
+  // The browser creates Blob URLs dependency-first. A static cycle has no first
+  // URL that can be embedded, so reject it while the bundler exposes the graph.
+  const graph = new Map(
+    chunks
+      .filter((chunk) => modules.has(chunk.fileName))
+      .map((chunk) => [chunk.fileName, chunk.imports.filter((path) => modules.has(path))] as const),
+  );
+  const visited = new Set<string>();
+  const active = new Set<string>();
+  const visit = (path: string) => {
+    if (active.has(path)) error(`Static anywidget bundle import cycle includes ${path}.`);
+    if (visited.has(path)) return;
+    active.add(path);
+    for (const dependency of graph.get(path) ?? []) visit(dependency);
+    active.delete(path);
+    visited.add(path);
+  };
+  for (const path of graph.keys()) visit(path);
+}
+
+function validateAssets(
+  error: (message: string) => never,
+  assets: readonly AssetInfo[],
+  styleFile: string,
+): string | null {
+  let style: string | null = null;
+  for (const asset of assets) {
+    if (asset.fileName !== styleFile) {
+      error(`Unsupported emitted anywidget bundle asset ${asset.fileName}.`);
+    }
+    if (style) error(`The anywidget bundle emitted more than one ${styleFile}.`);
+    style = styleFile;
+  }
+  return style;
+}
+
+function resolveOptions(options: AnyWidgetBundleOptions): BundleOptions {
   if (!isPlainObject(options)) throw new Error("anywidgetBundle options must be an object.");
   for (const key of Object.keys(options)) {
-    if (key !== "app" && key !== "outDir" && key !== "devEntry") {
+    if (key !== "app" && key !== "outDir" && key !== "devEntry" && key !== "output") {
       throw new Error(`anywidgetBundle ${key} is not supported.`);
     }
   }
@@ -194,13 +340,71 @@ function resolveOptions(options: AnyWidgetBundleOptions): ResolvedOptions {
   if (typeof options.outDir !== "string" || options.outDir.length === 0) {
     throw new Error("anywidgetBundle outDir must be a non-empty directory path.");
   }
-  const devEntry = options.devEntry ?? DEFAULT_DEV_ENTRY;
-  if (!isDevelopmentPath(devEntry)) {
+  const devEntry = options.devEntry === undefined ? DEFAULT_DEV_ENTRY : options.devEntry;
+  validateDevEntry(devEntry);
+  const outputOptions: unknown = options.output;
+  if (outputOptions !== undefined && !isPlainObject(outputOptions)) {
+    throw new Error("anywidgetBundle output must be an object.");
+  }
+  if (outputOptions) {
+    for (const key of Object.keys(outputOptions)) {
+      if (key !== "entry" && key !== "app" && key !== "style") {
+        throw new Error(`anywidgetBundle output.${key} is not supported.`);
+      }
+    }
+  }
+  const output = {
+    entry: validateOutputPath(
+      "output.entry",
+      outputOptions?.entry === undefined ? DEFAULT_OUTPUT.entry : outputOptions.entry,
+      isJavaScriptArtifactPath,
+    ),
+    app: validateOutputPath(
+      "output.app",
+      outputOptions?.app === undefined ? DEFAULT_OUTPUT.app : outputOptions.app,
+      isJavaScriptArtifactPath,
+    ),
+    style: validateOutputPath(
+      "output.style",
+      outputOptions?.style === undefined ? DEFAULT_OUTPUT.style : outputOptions.style,
+      isStylesheetArtifactPath,
+    ),
+  };
+  if (artifactPathsConflict([MANIFEST_FILE, output.entry, output.app, output.style])) {
+    throw new Error("anywidgetBundle output paths must not collide.");
+  }
+  // Keep split chunks beside the app entry and reuse its extension. The runtime
+  // resolves emitted relative specifiers against these manifest paths.
+  const slash = output.app.lastIndexOf("/");
+  const directory = slash === -1 ? "" : output.app.slice(0, slash + 1);
+  return {
+    app: options.app,
+    outDir: options.outDir,
+    devEntry,
+    output,
+    chunkFileNames: `${directory}chunk-[hash]${javascriptExtension(output.app)}`,
+  };
+}
+
+function validateDevEntry(value: string): void {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.length === 1 ||
+    value.includes("?") ||
+    value.includes("#") ||
+    value.includes("%") ||
+    value.includes("\\") ||
+    value
+      .slice(1)
+      .split("/")
+      .some((part) => !DEV_ENTRY_SEGMENT.test(part) || part === "." || part === "..")
+  ) {
     throw new Error(
       "anywidgetBundle devEntry must be an absolute Vite path without a query or fragment.",
     );
   }
-  return { app: options.app, outDir: options.outDir, devEntry };
 }
 
 function validateOutDir(root: string, outDir: string): void {
@@ -230,21 +434,15 @@ function canonicalPath(path: string): string {
   return resolve(realpathSync.native(existing), ...missing);
 }
 
-function isDevelopmentPath(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.startsWith("/") &&
-    !value.startsWith("//") &&
-    value.length > 1 &&
-    !value.includes("?") &&
-    !value.includes("#") &&
-    !value.includes("%") &&
-    !value.includes("\\") &&
-    !value
-      .slice(1)
-      .split("/")
-      .some((part) => part === "" || part === "." || part === "..")
-  );
+function validateOutputPath(
+  label: string,
+  value: unknown,
+  accepts: (value: string) => boolean,
+): string {
+  if (typeof value !== "string" || !accepts(value)) {
+    throw new Error(`anywidgetBundle ${label} must be a safe relative bundle path.`);
+  }
+  return value;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -257,12 +455,19 @@ async function resolveAppImport(
   context: { resolve: PluginContextResolve },
   app: string,
 ): Promise<string> {
-  return (await context.resolve(app, undefined, { skipSelf: true }))?.id ?? app;
+  const direct = await context.resolve(app, undefined, { skipSelf: true });
+  if (direct) return direct.id;
+  return app;
 }
 
 function validateResolvedAppImport(id: string): void {
+  // Vite also uses query and fragment suffixes in resolved IDs. A successful
+  // lookup means the delimiter belongs to the filename. The browser would parse
+  // it as URL metadata.
   if (isAbsoluteFilePath(id) && (id.includes("?") || id.includes("#")) && existsSync(id)) {
-    throw new Error("anywidgetBundle app filesystem paths must not contain ? or #.");
+    throw new Error(
+      "anywidgetBundle app filesystem paths must not contain ? or # filename characters.",
+    );
   }
 }
 
@@ -273,18 +478,16 @@ type PluginContextResolve = (
 ) => Promise<{ id: string } | null>;
 
 function browserImport(id: string, root: string): string {
+  // Resolved filesystem and virtual IDs must be rendered as Vite browser
+  // request forms before they are embedded in the development entry.
   const normalized = normalizePath(id);
-  if (normalized.startsWith("\0")) {
+  if (normalized.startsWith("\0"))
     return `${VITE_ID_PREFIX}${normalized.replace("\0", VITE_NULL_BYTE)}`;
-  }
-  if (normalized.startsWith("/@fs/") || normalized.startsWith(VITE_ID_PREFIX)) {
-    return normalized;
-  }
+  if (normalized.startsWith("/@fs/") || normalized.startsWith(VITE_ID_PREFIX)) return normalized;
   if (isAbsoluteFilePath(normalized)) {
     const relativePath = relativeToRoot(normalizePath(root), normalized);
-    return relativePath === undefined
-      ? `/@fs/${normalized.replace(/^\/+/, "")}`
-      : `/${relativePath}`;
+    if (relativePath !== undefined) return `/${relativePath}`;
+    return `/@fs/${normalized.replace(/^\/+/, "")}`;
   }
   if (normalized.startsWith("/") || normalized.includes(":")) return normalized;
   return `/${normalized}`;
@@ -298,9 +501,8 @@ function relativeToRoot(root: string, id: string): string | undefined {
   const path = WINDOWS_DRIVE_PATH.test(root) || WINDOWS_DRIVE_PATH.test(id) ? win32 : posix;
   if (!path.isAbsolute(root) || !path.isAbsolute(id)) return undefined;
   const relativePath = normalizePath(path.relative(root, id));
-  if (path.isAbsolute(relativePath) || relativePath === ".." || relativePath.startsWith("../")) {
+  if (path.isAbsolute(relativePath) || relativePath === ".." || relativePath.startsWith("../"))
     return undefined;
-  }
   return relativePath;
 }
 
@@ -308,11 +510,9 @@ function isDevelopmentEntryRequest(id: string, devEntry: string): boolean {
   return id === devEntry || id === `${devEntry}?anywidget`;
 }
 
-function isWebImport(specifier: string): boolean {
-  return /^(?:https?:|data:)/.test(specifier);
-}
-
-function runtimeSourcePath(module: "build"): string {
+function runtimeSourcePath(module: "app-entry" | "build" | "dev"): string {
+  // Direct TypeScript execution and the published JavaScript plugin resolve
+  // different sibling extensions.
   const sourcePath = fileURLToPath(import.meta.url);
   const extension = sourcePath.endsWith(".ts") ? ".ts" : ".js";
   return normalizePath(join(dirname(sourcePath), `${module}${extension}`));

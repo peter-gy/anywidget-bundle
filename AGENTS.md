@@ -18,8 +18,8 @@ Run `make check test build` before handoff. Use the narrower target while iterat
 
 ## Repository map
 
-- `packages/vite` publishes npm `anywidget-bundle`. It owns Vite configuration, the development entry, artifact validation, and the `AnyWidget` type export.
-- `packages/widget` publishes PyPI `anywidget-bundle`. It owns artifact resolution and the `Bundle` and `BundledWidget` APIs.
+- `packages/vite` publishes npm `anywidget-bundle`. It owns Vite configuration, the browser module loader, the lifecycle bridge, development behavior, and artifact validation.
+- `packages/widget` publishes PyPI `anywidget-bundle`. It owns manifest resolution, the module allowlist, custom-message responses, and the `Bundle` and `BundledWidget` APIs.
 - `docs` contains installed-user documentation.
 - `apps/docs` contains VitePress tooling.
 - `development_docs` contains contributor and release contracts.
@@ -30,21 +30,33 @@ Run `make check test build` before handoff. Use the narrower target while iterat
 The data path is:
 
 ```text
-AFM source -> Vite plugin -> index.js + optional widget.css -> Bundle -> BundledWidget -> anywidget
+AFM source -> Vite -> index.js ---------------------------> anywidget _esm
+                  -> anywidget.json -> Bundle allowlist
+                  -> chunks/*.js <-> custom messages <-> browser module loader
+                  -> widget.css --------------------------> anywidget _css
 ```
 
-The npm package must not depend on Python project details. The Python package must not implement JavaScript lifecycle behavior. The generated entry owns decompression and app factory resolution. anywidget owns initialization, exports, render ordering, host composition, and cleanup.
+The npm package must not depend on Python project details. The Python package must not implement JavaScript lifecycle behavior. Python validates the manifest and sends allowlisted module source as binary comm buffers. The generated entry requests and evaluates the module graph. anywidget owns host composition and lifecycle signals.
 
-`packages/vite/src/build.ts` is a pack-time file and a consumer-build entry. The Vite plugin replaces its module body with a re-export of the configured app, then compresses the bundled module into the generated entry.
+`packages/vite/src/build.ts` is a consumer-build entry for the small bootstrap. `packages/vite/src/app-entry.ts` is the application root. The Vite plugin replaces the application root with a re-export of the configured app and defines its manifest path in the bootstrap.
 
-## Fixed artifact contract
+## Manifest contract
 
-Production output contains exactly:
+Default production output contains:
 
+- `anywidget.json`
 - `index.js`
+- `chunks/app.js`
+- opaque `chunks/chunk-[hash].js` application chunks
 - optional `widget.css`
 
-Keep output names fixed across TypeScript, Python, tests, and docs. `index.js` must have no concrete relative or bare imports because anywidget evaluates its text through a Blob URL. Bundle local dependencies and literal dynamic imports. Computed imports must resolve to HTTP or data URLs. Inline non-CSS assets. Reject unresolved imports, extra chunks, and extra assets during the Vite build.
+The `output` option may replace the entry, app, and stylesheet paths. Keep `anywidget.json` fixed. Its `modules` list is the Python read allowlist and must contain the app entry, every split chunk, and no bootstrap.
+
+Each slash-separated artifact path segment must match `[A-Za-z0-9._-]+`. Reject `.` and `..`, trailing dots, and the case-insensitive Windows reserved basenames `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`. JavaScript and stylesheet paths require a filename before their extension. Compare artifact paths using ASCII lowercase and reject both case aliases and file-directory overlaps. Emit split chunks beside the app entry as opaque `chunk-[hash]` files with the app entry's extension.
+
+`devEntry` uses a separate absolute URL-path grammar. Its nonempty segments match `[A-Za-z0-9._@-]+` and cannot be `.` or `..`. Reject queries, fragments, percent escapes, and backslashes.
+
+`index.js` must be self-contained because anywidget evaluates its text through a Blob URL. Application chunks may reference other manifest modules or HTTP URLs. Keep the static module graph acyclic. Literal relative dynamic imports re-enter the model-scoped loader. Computed imports must resolve to browser URLs. Inline non-CSS assets and reject unlisted chunks, extra assets, unsafe paths, and artifact collisions during the Vite build.
 
 ## AFM contract
 
@@ -53,22 +65,23 @@ The app default export is the public lifecycle boundary. Accept these forms:
 - AFM object
 - synchronous zero-argument factory
 - asynchronous zero-argument factory
-- initialize-only, render-only, and empty definitions
+- initialize-only and render-only definitions
 
-The generated entry normalizes these forms to an async factory that returns the app definition. Preserve `initialize` results. Objects are widget exports. Functions are cleanup callbacks. `undefined` is valid. Pass lifecycle hooks and values to anywidget unchanged.
+The production bootstrap starts module loading during `initialize` and returns model teardown synchronously so anywidget can deliver custom-message responses. The app `initialize` hook may return cleanup or `undefined`. Object exports are outside this transport contract. Rendering waits for module loading and app initialization, then passes model, element, host, experimental APIs, and lifecycle signal to the app.
 
 ## Public APIs
 
 The npm package exports:
 
 - default and named `anywidgetBundle`
-- `AnyWidgetBundleOptions`
-- `AnyWidget`
+- plugin option and output option types
+- bundle app, app module, initialize, and model-state types
 
 The Python package exports:
 
 - `Bundle`
 - `BundleArtifactError`
+- `BundleModuleError`
 - `BundledWidget`
 
 Adding a public export requires tests and updates to the matching API page. Keep the surface small.
@@ -77,10 +90,11 @@ Adding a public export requires tests and updates to the matching API page. Keep
 
 Test behavior through consumer boundaries:
 
-- Vite changes build a fixture and inspect or import its final artifact.
-- AFM changes cover object, factory, async factory, exports, and lifecycle failure shapes.
-- Python changes instantiate `Bundle` or `BundledWidget` against real files.
-- Path changes cover missing files, invalid development URLs, and symlink containment.
+- Vite changes build a fixture and inspect its manifest, bootstrap, app root, and split chunks.
+- Runtime changes cover request correlation, import rewriting, module identity, aborts, and URL cleanup.
+- AFM changes cover object, factory, async factory, cleanup, ordering, and lifecycle failures.
+- Python changes instantiate `Bundle` or `BundledWidget` against real manifests and binary responses.
+- Path changes cover the portable ASCII grammar, reserved basenames, ASCII-case collisions, invalid development URLs, missing files, and symlink containment.
 - Package changes inspect and install the packed npm tarball and Python wheel.
 - Docs changes build with `BASE_PATH=/anywidget-bundle` and receive a browser smoke check.
 

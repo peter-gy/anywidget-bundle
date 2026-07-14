@@ -10,17 +10,42 @@ Bundle(
 )
 ```
 
-`static_dir` contains `index.js` and optional `widget.css`. The path is resolved when the bundle is created.
+`static_dir` contains `anywidget.json` and every artifact it names. The path is resolved when the bundle is created. The manifest is parsed once and defines the exact JavaScript module allowlist.
 
-When `dev_server_env` names a populated environment variable, `anywidget_assets()` returns its HTTP server URL joined with `dev_entry`. Otherwise it returns the production artifact paths.
+Manifest artifact paths use slash-separated segments matching `[A-Za-z0-9._-]+`. The final segment requires a filename before `.js`, `.mjs`, or `.css`. The loader rejects `.` and `..`, trailing dots, case-insensitive Windows reserved basenames, ASCII case aliases, and file-directory overlaps.
 
-`anywidget_assets()` raises `BundleArtifactError` when the JavaScript entry is missing or an artifact resolves outside `static_dir`. Widget construction also raises `BundleArtifactError` for unreadable or invalid UTF-8 assets.
+When `dev_server_env` names a populated environment variable, `anywidget_assets()` returns its HTTP server URL joined with `dev_entry` and an empty stylesheet. Vite serves the module graph and styles directly in this mode. Otherwise the method returns the manifest's bootstrap and stylesheet paths.
+
+`dev_entry` uses a separate absolute URL-path grammar whose nonempty segments match `[A-Za-z0-9._@-]+`. `Bundle` raises `ValueError` for dot segments, queries, fragments, percent escapes, backslashes, or characters outside that grammar. `anywidget_assets()` raises `ValueError` when the configured development server cannot be parsed as an HTTP or HTTPS URL or includes a query or fragment.
+
+`anywidget_assets()` raises `BundleArtifactError` when the manifest is missing or invalid, an artifact path is unsafe, or artifacts collide. Widget construction also raises `BundleArtifactError` when the bootstrap or stylesheet is missing, unreadable, or invalid UTF-8.
+
+### `Bundle.read_module(module_path)`
+
+Returns the UTF-8 source for a JavaScript module listed in `anywidget.json`.
+
+Loading a missing or invalid manifest raises `BundleArtifactError`. With a valid manifest, module lookup and reads raise `BundleModuleError`. Its `code` attribute has one of these values:
+
+| Code           | Condition                                                                        |
+| -------------- | -------------------------------------------------------------------------------- |
+| `invalid_path` | The value is unsafe, absent from the manifest, or resolves outside `static_dir`. |
+| `not_found`    | The allowlisted module file is missing.                                          |
+| `read_failed`  | The module cannot be read as UTF-8 text.                                         |
 
 ## `BundledWidget`
 
 ```python
+from pathlib import Path
+
+from anywidget_bundle import Bundle, BundledWidget
+
+
 class Widget(BundledWidget):
     bundle = Bundle(Path(__file__).parent / "static")
 ```
 
-`BundledWidget` reads the bundle into the `_esm` and `_css` traits before `anywidget.AnyWidget` initializes them. Set `include_bundle_css = False` when the application owns stylesheet loading.
+`BundledWidget` reads the bootstrap and stylesheet into the `_esm` and `_css` traits before `anywidget.AnyWidget` initializes them. It also registers a handler for version 1 `anywidget-bundle:request` custom messages.
+
+The handler accepts an allowlisted module path, echoes the request ID and path, and sends UTF-8 source in one binary buffer. Structured error responses carry the `BundleModuleError` code. Other custom-message envelopes remain available to the widget application.
+
+Set `include_bundle_css = False` when the application owns stylesheet loading.

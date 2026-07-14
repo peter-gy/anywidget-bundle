@@ -1,16 +1,27 @@
-import type { AnyWidget } from "../src/index";
+import type { AnyWidgetBundleAppModule } from "../src/index";
 import { describe, expect, test } from "vite-plus/test";
 
-describe("AnyWidget export", () => {
-  test("accepts every AFM module shape", () => {
+describe("AnyWidgetBundleAppModule export", () => {
+  test("accepts the supported bundle app shapes", () => {
     const definitions = [
-      {},
-      { initialize: () => ({ ready: true }) },
+      { initialize: () => undefined },
+      { initialize: () => () => undefined },
       { render: () => undefined },
       () => ({ render: () => undefined }),
       async () => ({ initialize: () => undefined }),
-    ] satisfies AnyWidget[];
+    ] satisfies AnyWidgetBundleAppModule[];
 
     expect(definitions).toHaveLength(5);
+  });
+
+  test("rejects definitions outside the bundle lifecycle contract", () => {
+    // @ts-expect-error A bundle app must provide initialize or render.
+    const empty: AnyWidgetBundleAppModule = {};
+    const exportsObject: AnyWidgetBundleAppModule = {
+      // @ts-expect-error Bundle initialization cannot publish AFM exports.
+      initialize: () => ({ ready: true }),
+    };
+
+    expect([empty, exportsObject]).toHaveLength(2);
   });
 });

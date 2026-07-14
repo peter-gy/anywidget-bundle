@@ -4,7 +4,7 @@ layout: home
 hero:
   name: anywidget-bundle
   text: Build with Vite. Load from Python.
-  tagline: One package name across npm and PyPI for self-contained anywidget frontends.
+  tagline: One package name across npm and PyPI for manifest-backed anywidget frontends.
   actions:
     - theme: brand
       text: Get started
@@ -14,12 +14,12 @@ hero:
       link: /vite
 
 features:
-  - title: AFM lifecycle
-    details: The generated factory resolves the app before anywidget owns initialization, exports, rendering, and cleanup.
-  - title: Fixed artifacts
-    details: Production builds contain index.js and optional widget.css.
-  - title: Python loader
-    details: Bundle resolves the build while BundledWidget connects it to anywidget.AnyWidget.
+  - title: Split production build
+    details: Vite emits a small index.js bootstrap, an anywidget.json manifest, and the application chunks.
+  - title: Python module serving
+    details: Bundle validates the manifest while BundledWidget serves allowlisted modules through custom messages.
+  - title: Model-scoped loading
+    details: The browser shares one module graph across a model's views and releases its listeners and object URLs during cleanup.
 ---
 
 Install the same project name in both ecosystems:

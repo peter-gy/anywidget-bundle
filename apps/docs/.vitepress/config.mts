@@ -6,7 +6,7 @@ const basePath = process.env.BASE_PATH?.replace(/\/$/, "");
 export default defineConfig({
   base: basePath ? `${basePath}/` : "/",
   cleanUrls: true,
-  description: "Build self-contained anywidget modules with Vite and load them from Python.",
+  description: "Build split anywidget modules with Vite and load them from Python.",
   lastUpdated: true,
   srcDir: "../../docs",
   themeConfig: {

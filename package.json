@@ -2,7 +2,7 @@
   "name": "anywidget-bundle-workspace",
   "version": "0.0.1",
   "private": true,
-  "description": "Build and load self-contained anywidget modules with Vite.",
+  "description": "Build and load split anywidget module graphs with Vite and Python.",
   "homepage": "https://github.com/peter-gy/anywidget-bundle#readme",
   "bugs": {
     "url": "https://github.com/peter-gy/anywidget-bundle/issues"
