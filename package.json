@@ -13,14 +13,6 @@
     "url": "git+https://github.com/peter-gy/anywidget-bundle.git"
   },
   "type": "module",
-  "scripts": {
-    "build": "vp run -F './apps/*' -F './packages/*' build && uv build --package anywidget-bundle --out-dir dist/python",
-    "check": "vp check && vp run -r typecheck && uv run ruff format --check && uv run ruff check && uv run ty check && uv run pyrefly check",
-    "dev": "vp run -t @anywidget-bundle/docs#dev",
-    "format": "vp fmt && uv run ruff format",
-    "ready": "pnpm check && pnpm test && pnpm build",
-    "test": "vp run -F './packages/*' test && uv run pytest"
-  },
   "devDependencies": {
     "typescript": "catalog:",
     "vite-plus": "catalog:",

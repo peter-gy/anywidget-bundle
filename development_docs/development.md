@@ -7,18 +7,24 @@ pnpm install --frozen-lockfile
 uv sync --frozen
 ```
 
-Run the full local gate:
+Run workspace validation:
 
 ```sh
-pnpm ready
+make check test build
 ```
 
-The root commands are intentionally small:
+The Makefile exposes four workspace targets:
 
-- `pnpm check` runs formatting, linting, and type checks across both languages.
-- `pnpm test` runs Vitest and pytest.
-- `pnpm build` packs the npm package, builds the wheel and source distribution, and builds the docs.
-- `pnpm dev` starts VitePress.
+- `make build` builds the npm package, wheel, source distribution, and docs.
+- `make check` runs formatting, linting, and type checks across both languages.
+- `make format` formats JavaScript and Python sources.
+- `make test` runs Vitest and pytest.
+
+Start VitePress from its workspace package:
+
+```sh
+pnpm exec vp run -t @anywidget-bundle/docs#dev
+```
 
 ## Validation by change
 

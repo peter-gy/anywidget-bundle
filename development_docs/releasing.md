@@ -4,10 +4,16 @@ The npm and PyPI distributions use the same name and version.
 
 1. Set the version in `packages/vite/package.json` and `packages/widget/pyproject.toml`.
 2. Refresh `pnpm-lock.yaml` and `uv.lock`.
-3. Run `pnpm ready`.
-4. Inspect the npm tarball, wheel, and source distribution.
-5. Push the validated commit.
-6. Create `vX.Y.Z` after manual release approval.
+3. Run `make check test build`.
+4. Pack the npm distribution:
+
+   ```sh
+   pnpm --filter anywidget-bundle pack --pack-destination dist/npm
+   ```
+
+5. Inspect the npm tarball, wheel, and source distribution.
+6. Push the validated commit.
+7. Create `vX.Y.Z` after manual release approval.
 
 The publish workflow verifies the tag against both package manifests. Its build job uploads immutable npm and Python artifacts. Separate jobs publish them concurrently through the `npm` and `pypi` environments. The release-notes job runs after both publish jobs complete.
 

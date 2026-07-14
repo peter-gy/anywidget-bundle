@@ -43,7 +43,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Verify workspace
-        run: pnpm ready
+        run: make check test build
 
       - name: Pack npm package
         run: pnpm --filter anywidget-bundle pack --pack-destination dist/npm

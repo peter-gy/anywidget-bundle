@@ -8,12 +8,13 @@ Guidance for coding agents working in this Vite+ and uv workspace. Read this fil
 | ------------------ | -------------------------------- | --------------------------------------------- |
 | Install JavaScript | `pnpm install --frozen-lockfile` | Lockfile accepted                             |
 | Install Python     | `uv sync --frozen`               | Lockfile accepted                             |
-| Check              | `pnpm check`                     | Vite+, TypeScript, Ruff, ty, and Pyrefly pass |
-| Test               | `pnpm test`                      | Vitest and pytest pass                        |
-| Build              | `pnpm build`                     | npm, PyPI, and docs artifacts build           |
-| Full gate          | `pnpm ready`                     | Check, test, and build pass                   |
+| Format             | `make format`                    | JavaScript and Python sources are formatted   |
+| Check              | `make check`                     | Vite+, TypeScript, Ruff, ty, and Pyrefly pass |
+| Test               | `make test`                      | Vitest and pytest pass                        |
+| Build              | `make build`                     | npm, PyPI, and docs artifacts build           |
+| Full gate          | `make check test build`          | Check, test, and build pass                   |
 
-Run `pnpm ready` before handoff. Use the narrower command while iterating.
+Run `make check test build` before handoff. Use the narrower target while iterating.
 
 ## Repository map
 
