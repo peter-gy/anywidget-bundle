@@ -1,4 +1,4 @@
-import type { AnyModel, Experimental } from "@anywidget/types";
+import type { AnyModel, Experimental, Host } from "@anywidget/types";
 import { init, parse } from "es-module-lexer/minimal";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -269,27 +269,75 @@ describe("anywidgetBundle", () => {
     expect(await readFile(join(fixture.root, "marker.txt"), "utf8")).toBe("keep");
   });
 
-  test("serves the configured app from the development entry", async () => {
+  test("executes the configured app through the development entry", async () => {
     const fixture = await createFixture({
-      "app.ts": `export default { render() {} };`,
+      "app.ts": `export default {
+        initialize() { return () => undefined; },
+        render({ el }) { el.textContent = "development"; return () => undefined; },
+      };`,
     });
+    const devEntry = "/@weather-widget/entry";
     const server = await createServer({
       configFile: false,
       logLevel: "silent",
-      plugins: [anywidgetBundle({ app: fixture.app, outDir: fixture.outDir })],
+      plugins: [anywidgetBundle({ app: fixture.app, outDir: fixture.outDir, devEntry })],
       root: fixture.root,
       server: { middlewareMode: true },
     });
+    const modelController = new AbortController();
+    const viewController = new AbortController();
+    let disposeModel: (() => void | Promise<void>) | undefined;
+    let disposeView: (() => void | Promise<void>) | undefined;
     try {
-      const transformed = await server.transformRequest("/@anywidget-bundle/entry?anywidget");
+      const transformed = await server.transformRequest(`${devEntry}?anywidget`);
       expect(transformed?.code).toContain("/app.ts");
       expect(transformed?.code).toContain("default");
       expect(transformed?.code).toContain("/@vite/client");
       expect(transformed?.code).toContain("import.meta.hot.accept");
       expect(transformed?.code).toContain("entry.update");
       expect(transformed?.code).toContain("entry.dispose");
+
+      const loaded = (await server.ssrLoadModule(`${devEntry}?anywidget`)) as {
+        default: () => Promise<{
+          initialize(props: unknown): unknown;
+          render(props: unknown): unknown;
+        }>;
+      };
+      const definition = await loaded.default();
+      const model = createModel(() => {});
+      const experimental = createExperimental();
+      const initialized = await definition.initialize({
+        model,
+        signal: modelController.signal,
+        experimental,
+      });
+      if (typeof initialized === "function") {
+        disposeModel = initialized as () => void | Promise<void>;
+      }
+      const el = { textContent: "" };
+      const rendered = await definition.render({
+        model,
+        el,
+        signal: viewController.signal,
+        experimental,
+        host: createHost(model),
+      });
+      if (typeof rendered === "function") {
+        disposeView = rendered as () => void | Promise<void>;
+      }
+      expect(el.textContent).toBe("development");
     } finally {
-      await server.close();
+      try {
+        try {
+          await disposeView?.();
+        } finally {
+          await disposeModel?.();
+        }
+      } finally {
+        viewController.abort();
+        modelController.abort();
+        await server.close();
+      }
     }
   });
 
@@ -490,6 +538,17 @@ function createExperimental(): Experimental {
       return [undefined as T, []];
     },
   };
+}
+
+function createHost(model: AnyModel): Host {
+  return {
+    async getModel() {
+      return model;
+    },
+    async getWidget() {
+      throw new Error("This fixture does not render child widgets.");
+    },
+  } as Host;
 }
 
 async function developmentImportSpecifiers(

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import anywidgetBundle from "anywidget-bundle";
-import { build } from "vite";
+import { build, createServer } from "vite";
 
 const root = await mkdtemp(join(tmpdir(), "anywidget-bundle-node-"));
 const app = join(root, "app.js");
@@ -69,3 +69,77 @@ await Promise.all(
   }),
 );
 assert.ok((await stat(join(outDir, manifest.style))).isFile());
+
+const devEntry = "/@compatibility-widget/entry";
+const server = await createServer({
+  configFile: false,
+  logLevel: "silent",
+  plugins: [anywidgetBundle({ app, devEntry, outDir })],
+  root,
+  server: { middlewareMode: true },
+});
+const modelController = new AbortController();
+const viewController = new AbortController();
+let disposeModel;
+let disposeView;
+try {
+  const loaded = await server.ssrLoadModule(`${devEntry}?anywidget`);
+  const definition = await loaded.default();
+  const model = createModel();
+  const experimental = {
+    async invoke() {
+      return [undefined, []];
+    },
+  };
+  disposeModel = await definition.initialize({
+    model,
+    signal: modelController.signal,
+    experimental,
+  });
+  const el = { textContent: "" };
+  disposeView = await definition.render({
+    model,
+    el,
+    signal: viewController.signal,
+    experimental,
+    host: {
+      async getModel() {
+        return model;
+      },
+      async getWidget() {
+        throw new Error("The compatibility fixture does not render child widgets.");
+      },
+    },
+  });
+  assert.equal(el.textContent, "ready");
+} finally {
+  try {
+    try {
+      if (typeof disposeView === "function") await disposeView();
+    } finally {
+      if (typeof disposeModel === "function") await disposeModel();
+    }
+  } finally {
+    viewController.abort();
+    modelController.abort();
+    await server.close();
+  }
+}
+
+function createModel() {
+  return {
+    get() {
+      return undefined;
+    },
+    set() {},
+    on() {},
+    off() {},
+    save_changes() {},
+    send() {},
+    widget_manager: {
+      async get_model() {
+        return createModel();
+      },
+    },
+  };
+}
