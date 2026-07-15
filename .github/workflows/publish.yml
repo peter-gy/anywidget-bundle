@@ -55,8 +55,9 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           npm_version="$(node -p "require('./packages/vite/package.json').version")"
           pypi_version="$(uv run python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("packages/widget/pyproject.toml").read_text())["project"]["version"])')"
+          expected_pypi_version="$(uv version --package anywidget-bundle --dry-run --frozen --output-format json "$version" | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version")"
           test "$version" = "$npm_version"
-          test "$version" = "$pypi_version"
+          test "$expected_pypi_version" = "$pypi_version"
 
       - name: Verify workspace
         run: make check test build
@@ -67,11 +68,12 @@ jobs:
       - name: Check release artifacts
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          wheel="dist/python/anywidget_bundle-${version}-py3-none-any.whl"
-          test -f "dist/npm/anywidget-bundle-${version}.tgz"
+          npm_version="${GITHUB_REF_NAME#v}"
+          pypi_version="$(uv version --package anywidget-bundle --short)"
+          wheel="dist/python/anywidget_bundle-${pypi_version}-py3-none-any.whl"
+          test -f "dist/npm/anywidget-bundle-${npm_version}.tgz"
           test -f "$wheel"
-          test -f "dist/python/anywidget_bundle-${version}.tar.gz"
+          test -f "dist/python/anywidget_bundle-${pypi_version}.tar.gz"
           uvx twine check dist/python/*
           uv run --isolated --no-project --with "$wheel" python -c 'import anywidget_bundle'
 
@@ -111,7 +113,13 @@ jobs:
           path: dist
 
       - name: Publish npm package
-        run: npx --yes npm@11.12.1 publish --access public dist/npm/anywidget-bundle-*.tgz
+        shell: bash
+        run: |
+          npm_tag="latest"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            npm_tag="next"
+          fi
+          npx --yes npm@11.12.1 publish --access public --tag "$npm_tag" dist/npm/anywidget-bundle-*.tgz
 
   publish-pypi:
     name: Publish to PyPI
@@ -158,6 +166,12 @@ jobs:
           package-manager-cache: false
 
       - name: Update release notes
-        run: npx changelogithub@14.0.0
+        shell: bash
+        run: |
+          args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          npx changelogithub@14.0.0 "${args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,20 +1,38 @@
 # Releasing
 
-The npm and PyPI distributions use the same name and version.
+The npm and PyPI distributions use the same name and release line. npm writes a release candidate as `0.0.1-rc.1`. Python normalizes the same version to `0.0.1rc1`.
 
-1. Set the version in `packages/vite/package.json` and `packages/widget/pyproject.toml`.
-2. Refresh `pnpm-lock.yaml` and `uv.lock`.
-3. Run `make check test build`.
-4. Pack the npm distribution:
+Configure each registry's trusted publisher for `peter-gy/anywidget-bundle`, `.github/workflows/publish.yml`, and its matching GitHub environment before pushing the first tag.
 
-   ```sh
-   pnpm --filter anywidget-bundle pack --pack-destination dist/npm
-   ```
+Run the release script from a clean `main` branch. With no argument, it validates and tags the current package version:
 
-5. Inspect the npm tarball, wheel, and source distribution.
-6. Push the validated commit.
-7. Create `vX.Y.Z` after manual release approval.
+```sh
+./scripts/release.sh
+```
 
-The publish workflow verifies the tag against both package manifests. Its build job uploads immutable npm and Python artifacts. Separate jobs publish them concurrently through the `npm` and `pypi` environments. The release-notes job runs after both publish jobs complete.
+For a later release, let pnpm apply the version bump across the JavaScript workspace. The script passes the resolved version to uv and synchronizes both package-manager lockfiles:
 
-Configure each registry's trusted publisher for `peter-gy/anywidget-bundle`, `.github/workflows/publish.yml`, and its matching GitHub environment before creating the first tag.
+```sh
+./scripts/release.sh patch
+```
+
+Use `minor` or `major` for the corresponding version change.
+
+Start a release-candidate series with its exact npm SemVer, then use `rc` for each later candidate:
+
+```sh
+./scripts/release.sh 0.0.1-rc.1
+./scripts/release.sh rc
+```
+
+Use `patch` to promote the current release candidate to its stable version.
+
+The script runs `make check test build`, executes the packed npm package, verifies the Python metadata and import, creates a release commit when versions changed, and adds an annotated `vX.Y.Z` tag. It leaves the release local for review.
+
+Review the release commit and tag, then run the exact atomic push command printed by the script. For a stable `0.0.1` release, it prints:
+
+```sh
+git push --atomic origin main v0.0.1
+```
+
+The publish workflow checks the tag against both registry package manifests, publishes npm prereleases under the `next` tag, publishes both packages through their GitHub environments, and creates the GitHub release notes after both registries accept the artifacts.
