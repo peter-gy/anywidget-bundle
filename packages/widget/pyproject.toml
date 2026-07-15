@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anywidget-bundle"
-version = "0.0.1rc1"
+version = "0.0.1"
 description = "Load Vite-built anywidget modules from Python."
 readme = "README.md"
 license = "MIT"
