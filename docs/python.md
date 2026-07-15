@@ -18,7 +18,11 @@ When `dev_server_env` names a populated environment variable, `anywidget_assets(
 
 `dev_entry` uses a separate absolute URL-path grammar whose nonempty segments match `[A-Za-z0-9._@-]+`. `Bundle` raises `ValueError` for dot segments, queries, fragments, percent escapes, backslashes, or characters outside that grammar. `anywidget_assets()` raises `ValueError` when the configured development server cannot be parsed as an HTTP or HTTPS URL or includes a query or fragment.
 
-`anywidget_assets()` raises `BundleArtifactError` when the manifest is missing or invalid, an artifact path is unsafe, or artifacts collide. Widget construction also raises `BundleArtifactError` when the bootstrap or stylesheet is missing, unreadable, or invalid UTF-8.
+`anywidget_assets()` validates the complete production graph before returning its bootstrap and stylesheet. It raises `BundleArtifactError` when the manifest is missing or invalid, an artifact path is unsafe, artifacts collide, or a named artifact is missing or is not a regular file. Widget construction also raises `BundleArtifactError` when the bootstrap or stylesheet is unreadable or invalid UTF-8.
+
+### `Bundle.validate()`
+
+Validates the manifest and checks that its bootstrap, application modules, split chunks, and optional stylesheet resolve to regular files inside `static_dir`. Call this after building the frontend to verify the source tree that will be packaged. Missing or invalid artifacts raise `BundleArtifactError`.
 
 ### `Bundle.read_module(module_path)`
 
@@ -31,6 +35,10 @@ Loading a missing or invalid manifest raises `BundleArtifactError`. With a valid
 | `invalid_path` | The value is unsafe, absent from the manifest, or resolves outside `static_dir`. |
 | `not_found`    | The allowlisted module file is missing.                                          |
 | `read_failed`  | The module cannot be read as UTF-8 text.                                         |
+
+### `Bundle.read_style()`
+
+Returns the production stylesheet as UTF-8 text. It returns an empty string for a CSS-free bundle and while the configured Vite development server owns style loading.
 
 ## `BundledWidget`
 

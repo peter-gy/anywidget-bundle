@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import re
+import stat
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
@@ -48,7 +49,7 @@ class _BundleManifest:
     entry: str
     style: str | None
     app: str
-    modules: frozenset[str]
+    modules: tuple[str, ...]
 
 
 @dataclasses.dataclass(frozen=True, init=False)
@@ -88,12 +89,48 @@ class Bundle:
             # Vite owns the app graph and imported styles during development.
             return f"{dev_server}{self.dev_entry}?anywidget", ""
 
-        # The built path gives anywidget the bootstrap and stylesheet. The
-        # bootstrap requests its app graph through the custom-message handler.
+        # The built path gives anywidget the bootstrap and stylesheet. Validate
+        # the complete graph before a model can request any of its modules.
+        self.validate()
         manifest = self._manifest
         entry = self._artifact_path(manifest.entry)
         style = self._artifact_path(manifest.style) if manifest.style is not None else ""
         return entry, style
+
+    def validate(self) -> None:
+        """Validate that every artifact named by the manifest is a regular file."""
+
+        manifest = self._manifest
+        artifact_paths = [manifest.entry, *manifest.modules]
+        if manifest.style is not None:
+            artifact_paths.append(manifest.style)
+
+        for relative_path in artifact_paths:
+            artifact = self._artifact_path(relative_path)
+            try:
+                mode = artifact.stat().st_mode
+            except FileNotFoundError as error:
+                raise BundleArtifactError(
+                    f"anywidget bundle artifact is missing: {relative_path}"
+                ) from error
+            except OSError as error:
+                raise BundleArtifactError(
+                    f"anywidget bundle artifact could not be inspected: {relative_path}"
+                ) from error
+            if not stat.S_ISREG(mode):
+                raise BundleArtifactError(
+                    f"anywidget bundle artifact must be a regular file: {relative_path}"
+                )
+
+    def read_style(self) -> str:
+        """Return stylesheet source, or an empty string in CSS-free and development modes."""
+
+        if self._dev_server() is not None:
+            return ""
+        style = self._manifest.style
+        if style is None:
+            return ""
+        return _asset_text(self._artifact_path(style))
 
     def read_module(self, module_path: object) -> str:
         """Read an exact JavaScript module listed by the bundle manifest."""
@@ -312,7 +349,7 @@ def _parse_manifest(raw: object) -> _BundleManifest:
         entry=entry,
         style=manifest_style,
         app=app,
-        modules=frozenset(module_paths),
+        modules=tuple(module_paths),
     )
 
 

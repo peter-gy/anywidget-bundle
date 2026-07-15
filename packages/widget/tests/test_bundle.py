@@ -117,6 +117,38 @@ def test_bundle_returns_manifest_assets(tmp_path: pathlib.Path) -> None:
     assert css == static_dir / "widget.css"
 
 
+def test_bundle_validates_every_manifest_module(tmp_path: pathlib.Path) -> None:
+    static_dir = tmp_path / "static"
+    _write_bundle(
+        static_dir,
+        sources={
+            "chunks/app.js": _APP_SOURCE,
+            "chunks/lazy.js": "export const lazy = true;",
+        },
+    )
+    (static_dir / "chunks" / "lazy.js").unlink()
+
+    with pytest.raises(BundleArtifactError, match=r"missing: chunks/lazy\.js"):
+        Bundle(static_dir=static_dir).validate()
+
+
+def test_bundled_widget_validates_the_complete_graph_before_initializing(
+    tmp_path: pathlib.Path,
+) -> None:
+    static_dir = tmp_path / "static"
+    _write_bundle(
+        static_dir,
+        sources={
+            "chunks/app.js": _APP_SOURCE,
+            "chunks/lazy.js": "export const lazy = true;",
+        },
+    )
+    (static_dir / "chunks" / "lazy.js").unlink()
+
+    with pytest.raises(BundleArtifactError, match=r"missing: chunks/lazy\.js"):
+        _widget_class_for_static_dir(static_dir)()
+
+
 def test_bundle_supports_manifest_without_css(tmp_path: pathlib.Path) -> None:
     static_dir = tmp_path / "static"
     _write_bundle(static_dir, style=None)
@@ -125,6 +157,33 @@ def test_bundle_supports_manifest_without_css(tmp_path: pathlib.Path) -> None:
 
     assert esm == static_dir / "index.js"
     assert css == ""
+
+
+def test_bundle_reads_style_source(tmp_path: pathlib.Path) -> None:
+    static_dir = tmp_path / "static"
+    _write_bundle(static_dir, style="styles/theme.css")
+    (static_dir / "styles" / "theme.css").write_text(
+        ".widget { color: rebeccapurple; }",
+        encoding="utf-8",
+    )
+
+    assert Bundle(static_dir=static_dir).read_style() == ".widget { color: rebeccapurple; }"
+
+
+def test_bundle_reads_style_independently_of_application_modules(
+    tmp_path: pathlib.Path,
+) -> None:
+    static_dir = tmp_path / "static"
+    _write_bundle(
+        static_dir,
+        sources={
+            "chunks/app.js": _APP_SOURCE,
+            "chunks/lazy.js": "export const lazy = true;",
+        },
+    )
+    (static_dir / "chunks" / "lazy.js").unlink()
+
+    assert Bundle(static_dir=static_dir).read_style() == ".widget {}"
 
 
 def test_bundled_widget_can_leave_css_to_another_model(
@@ -170,6 +229,7 @@ def test_bundle_uses_configured_dev_server_entry(
 
     assert esm == f"http://127.0.0.1:5173{expected_path}"
     assert css == ""
+    assert bundle.read_style() == ""
 
 
 def test_bundle_preserves_dev_server_base_path(
@@ -378,12 +438,9 @@ def test_bundled_widget_reports_missing_manifest_module_with_sanitized_error(
     tmp_path: pathlib.Path,
 ) -> None:
     static_dir = tmp_path / "static"
-    _write_bundle(
-        static_dir,
-        sources={},
-        manifest_updates={"modules": ["chunks/app.js"]},
-    )
+    _write_bundle(static_dir)
     widget = _widget_class_for_static_dir(static_dir)()
+    (static_dir / "chunks" / "app.js").unlink()
 
     response, buffers = _request(widget)
 
@@ -398,8 +455,11 @@ def test_bundled_widget_sanitizes_module_read_errors(
     tmp_path: pathlib.Path,
 ) -> None:
     static_dir = tmp_path / "static"
-    _write_bundle(static_dir, sources={"chunks/app.js": None})
+    _write_bundle(static_dir)
     widget = _widget_class_for_static_dir(static_dir)()
+    module = static_dir / "chunks" / "app.js"
+    module.unlink()
+    module.mkdir()
 
     response, buffers = _request(widget)
 
@@ -426,21 +486,8 @@ def test_bundled_widget_rejects_symlink_escape(
     manifest = json.loads((static_dir / "anywidget.json").read_text())
     manifest["modules"] = ["chunks/app.js"]
     (static_dir / "anywidget.json").write_text(json.dumps(manifest))
-    widget = _widget_class_for_static_dir(static_dir)()
-
-    response, buffers = _request(widget)
-
-    assert response == {
-        "type": "anywidget-bundle:response",
-        "version": 1,
-        "id": "request-1",
-        "path": "chunks/app.js",
-        "error": {
-            "code": "invalid_path",
-            "message": "Requested module is not part of this bundle.",
-        },
-    }
-    assert buffers == []
+    with pytest.raises(BundleArtifactError, match="escapes its static directory"):
+        _widget_class_for_static_dir(static_dir)()
 
 
 def test_bundled_widget_rejects_symlinked_module_directory_escape(
@@ -458,21 +505,8 @@ def test_bundled_widget_rejects_symlinked_module_directory_escape(
     manifest = json.loads((static_dir / "anywidget.json").read_text())
     manifest["modules"] = ["modules/main.mjs"]
     (static_dir / "anywidget.json").write_text(json.dumps(manifest))
-    widget = _widget_class_for_static_dir(static_dir)()
-
-    response, buffers = _request(widget, "modules/main.mjs")
-
-    assert response == {
-        "type": "anywidget-bundle:response",
-        "version": 1,
-        "id": "request-1",
-        "path": "modules/main.mjs",
-        "error": {
-            "code": "invalid_path",
-            "message": "Requested module is not part of this bundle.",
-        },
-    }
-    assert buffers == []
+    with pytest.raises(BundleArtifactError, match="escapes its static directory"):
+        _widget_class_for_static_dir(static_dir)()
 
 
 @pytest.mark.parametrize(

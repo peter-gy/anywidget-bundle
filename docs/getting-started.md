@@ -95,10 +95,23 @@ artifacts = ["src/weather_widget/static/**"]
 packages = ["src/weather_widget"]
 ```
 
-Build the frontend before the Python distribution:
+Build the frontend:
 
 ```sh
 pnpm exec vite build
+```
+
+Validate the generated graph before building the distribution:
+
+```python
+from weather_widget import WeatherWidget
+
+WeatherWidget.bundle.validate()
+```
+
+Build the Python distribution:
+
+```sh
 uv build
 ```
 
