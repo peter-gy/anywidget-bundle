@@ -2,9 +2,15 @@
 
 [![License](https://img.shields.io/pypi/l/anywidget-bundle)](./LICENSE) [![PyPI](https://img.shields.io/pypi/v/anywidget-bundle)](https://pypi.org/project/anywidget-bundle/) [![npm](https://img.shields.io/npm/v/anywidget-bundle)](https://www.npmjs.com/package/anywidget-bundle)
 
-`anywidget-bundle` splits an anywidget frontend into a lean entry module and Vite chunks packaged in the widget's Python wheel. When a model initializes, the entry requests the bundle app and its static module graph from Python. Literal relative dynamic imports request their chunks when executed.
+`anywidget-bundle` splits an [anywidget](https://anywidget.dev/) frontend into a lean entry module and Vite chunks packaged in the widget's Python wheel. When a model initializes, the entry requests the bundle app and its static module graph from Python. Literal relative dynamic imports request their chunks when executed.
+
+## When to use
+
+This approach is most relevant when a widget depends on larger frontend libraries that would make its `_esm` bundle heavy. For simple widgets with few or no external dependencies, the [standard anywidget bundling workflow](https://anywidget.dev/en/bundling/), which uses esbuild in most project templates, is a good fit.
 
 That split is especially relevant in Pyodide-based hosts such as [marimo islands](https://docs.marimo.io/guides/island_example/), where marimo represents inline `_esm` as a base64 data URL for each widget model. Pages with many islands attach the lean entry to each model, then request its static graph from the installed wheel during initialization. This wheel-backed transport also works with Jupyter, VS Code, and other anywidget hosts.
+
+## Getting started
 
 ```sh
 pnpm add -D anywidget-bundle vite
