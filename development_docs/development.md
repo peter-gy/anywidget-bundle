@@ -15,7 +15,7 @@ make check test build
 
 The Makefile exposes four workspace targets:
 
-- `make build` builds the npm package, wheel, source distribution, and docs.
+- `make build` builds the npm package, wheel, source distribution, and documentation site.
 - `make check` runs formatting, linting, and type checks across both languages.
 - `make format` formats JavaScript and Python sources.
 - `make test` runs Vitest and pytest.
@@ -31,7 +31,7 @@ pnpm exec vp run -t @anywidget-bundle/docs#dev
 | Change           | Required evidence                                           |
 | ---------------- | ----------------------------------------------------------- |
 | Vite plugin      | Built fixture, manifest graph, bootstrap, and imported app  |
-| AFM typing       | Object, sync factory, async factory, and cleanup coverage   |
+| Bundle app types | Object, sync factory, async factory, and cleanup coverage   |
 | Module runtime   | Request correlation, import rewriting, caching, and cleanup |
 | Python loader    | Manifest, allowlist, binary response, and error-path tests  |
 | Package metadata | npm tarball and loader wheel contents, isolated imports     |

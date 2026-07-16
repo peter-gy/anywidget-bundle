@@ -1,5 +1,7 @@
 # Getting started
 
+The production build gives anywidget a lean `index.js` entry. The consuming Python wheel carries `anywidget.json`, the bundle app, its split chunks, and optional CSS.
+
 Install the build plugin and Python loader:
 
 ```sh
@@ -81,6 +83,16 @@ class WeatherWidget(BundledWidget):
 
 `BundledWidget` embeds the small `index.js` bootstrap in `_esm`. The bootstrap requests the application chunks through the widget's custom-message channel. Python accepts module paths from the manifest and sends each source file in one binary buffer.
 
+Create the widget in a notebook:
+
+```python
+WeatherWidget(value="Hello from anywidget")
+```
+
+The widget renders `Hello from anywidget`.
+
+Production loading starts when the model initializes. The app entry and its static relative dependencies load first. A literal relative dynamic import requests its chunk when that import expression runs.
+
 ## Package the frontend
 
 The consumer Python wheel owns its generated frontend directory. Include the complete tree so the installed widget can read the manifest and every listed module.
@@ -93,12 +105,6 @@ artifacts = ["src/weather_widget/static/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/weather_widget"]
-```
-
-Build the frontend:
-
-```sh
-pnpm exec vite build
 ```
 
 Validate the generated graph before building the distribution:
@@ -117,7 +123,7 @@ uv build
 
 Inspect the wheel for `index.js`, `anywidget.json`, `chunks/app.js`, every additional manifest module, and optional `widget.css`.
 
-## Use the Vite development server
+## Develop with Vite
 
 Start Vite:
 
@@ -131,4 +137,4 @@ Set the environment variable configured by `dev_server_env` in the shell that la
 export WEATHER_WIDGET_VITE_SERVER=http://localhost:5173
 ```
 
-In development, `Bundle` gives anywidget the Vite entry URL. Vite serves the application graph, styles, and hot updates directly, so the production manifest transport is bypassed.
+In development, `Bundle` gives anywidget the Vite entry URL. Vite serves the application graph, styles, and hot updates directly.

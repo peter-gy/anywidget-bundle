@@ -2,7 +2,7 @@
 
 ## `anywidgetBundle(options)`
 
-Returns a Vite plugin that builds a manifest-backed anywidget frontend module (AFM) graph.
+Returns a Vite plugin that builds a bundle app into a lean anywidget frontend module and a manifest-backed JavaScript graph.
 
 Use Vite 8 or Vite+ 0.2.4 with Node.js 20.19 or newer.
 
@@ -23,12 +23,12 @@ anywidgetBundle({
 
 ### Options
 
-| Name       | Type     | Default                    | Behavior                                                         |
-| ---------- | -------- | -------------------------- | ---------------------------------------------------------------- |
-| `app`      | `string` | required                   | Vite module ID whose default export is an AFM object or factory. |
-| `outDir`   | `string` | required                   | Artifact directory for the production build.                     |
-| `devEntry` | `string` | `/@anywidget-bundle/entry` | Absolute Vite path used by the Python development URL.           |
-| `output`   | `object` | `{}`                       | Overrides production entry, app, and stylesheet paths.           |
+| Name       | Type     | Default                    | Behavior                                                        |
+| ---------- | -------- | -------------------------- | --------------------------------------------------------------- |
+| `app`      | `string` | required                   | Vite module ID whose default export is a bundle app or factory. |
+| `outDir`   | `string` | required                   | Artifact directory for the production build.                    |
+| `devEntry` | `string` | `/@anywidget-bundle/entry` | Absolute Vite path used by the Python development URL.          |
+| `output`   | `object` | `{}`                       | Overrides production entry, app, and stylesheet paths.          |
 
 `outDir` may be beneath or outside the Vite root. It cannot resolve to the Vite root or one of its ancestors.
 
@@ -42,7 +42,7 @@ Split chunks are emitted beside `output.app` as opaque `chunk-[hash]` files and 
 
 A production build emits:
 
-- `index.js`, a small AFM bootstrap
+- `index.js`, a small anywidget frontend module
 - `anywidget.json`, the versioned artifact manifest
 - `chunks/app.js`, the application entry
 - opaque `chunks/chunk-[hash].js` files from the application graph
@@ -60,20 +60,37 @@ The manifest records the bootstrap, stylesheet, app entry, and complete JavaScri
 }
 ```
 
-The bootstrap is embedded in the widget. It requests the app entry and dependencies from Python as they are needed. Imported assets are inlined, and imported CSS is combined into the configured stylesheet. HTTP imports remain browser imports. Computed dynamic imports remain native browser imports, so their runtime value must be a browser-resolvable URL.
+The bootstrap is embedded in the widget. During model initialization it requests the app entry and its complete static relative dependency graph from Python. Imported assets are inlined, and imported CSS is combined into the configured stylesheet.
 
-Static relative dependencies load before their importers, and literal relative dynamic imports use the same model-scoped loader. Views for one model therefore share module identity and cached source.
+Literal relative dynamic imports use the same model-scoped loader and request their chunks when the import expression runs:
+
+```ts
+const { renderPanel } = await import("./panel");
+```
+
+Static relative dependencies load before their importers. Views for one model share module identity and cached source. HTTP imports remain browser imports. Computed dynamic imports remain native browser imports, so their runtime value must be a browser-resolvable URL.
 
 The build rejects missing module references, static import cycles, unsafe artifact paths, path collisions, and emitted assets other than the configured stylesheet.
 
 ### Development
 
-The development entry imports the application through Vite. Vite owns dependency loading, styles, and hot updates in this mode. Python supplies the development entry URL and bypasses the production manifest transport.
+The development entry imports the application through Vite. Vite owns dependency loading, styles, and hot updates in this mode. Python supplies the development entry URL.
 
 `devEntry` uses a separate absolute URL-path grammar. Its nonempty segments match `[A-Za-z0-9._@-]+` and cannot be `.` or `..`. Queries, fragments, percent escapes, and backslashes are rejected. Set Python's `dev_entry` to the same path when you customize `devEntry`.
 
-### AFM contract
+### Bundle app contract
 
-The plugin accepts AFM objects, sync factories, and async factories. Production module loading begins during `initialize`, so its return value is reserved for teardown. Return a cleanup function or `undefined` from the application `initialize` hook.
+The configured module exports an `AnyWidgetBundleApp` object or a zero-argument factory that returns one synchronously or asynchronously. A bundle app provides `initialize`, `render`, or both.
+
+| Export                             | Contract                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `AnyWidgetBundleApp<ModelState>`   | Bundle app with an `initialize` hook, a `render` hook, or both.           |
+| `AnyWidgetBundleAppModule<State>`  | Bundle app or zero-argument synchronous or asynchronous factory.          |
+| `AnyWidgetBundleInitialize<State>` | Model hook that returns cleanup, resolves to cleanup, or returns nothing. |
+| `AnyWidgetState`                   | Default record shape for synchronized model state.                        |
+| `AnyWidgetBundleOptions`           | Options accepted by `anywidgetBundle`.                                    |
+| `AnyWidgetBundleOutputOptions`     | Optional entry, app, and stylesheet artifact paths.                       |
+
+The generated frontend module starts loading during anywidget's `initialize` hook and returns model teardown synchronously. After the bundle app resolves, its own `initialize` hook runs and may return a cleanup function or `undefined`.
 
 `render` waits for module loading and application initialization. It receives the host, model, element, experimental APIs, and lifecycle signal from anywidget. Application code removes its own model listeners through the returned cleanup function or lifecycle signal. Bundle cleanup aborts pending module requests, removes the custom-message listener, and releases generated module URLs.

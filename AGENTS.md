@@ -11,7 +11,7 @@ Guidance for coding agents working in this Vite+ and uv workspace. Read this fil
 | Format             | `make format`                    | JavaScript and Python sources are formatted   |
 | Check              | `make check`                     | Vite+, TypeScript, Ruff, ty, and Pyrefly pass |
 | Test               | `make test`                      | Vitest and pytest pass                        |
-| Build              | `make build`                     | npm, PyPI, and docs artifacts build           |
+| Build              | `make build`                     | npm, Python, and docs artifacts build         |
 | Full gate          | `make check test build`          | Check, test, and build pass                   |
 
 Run `make check test build` before handoff. Use the narrower target while iterating.
@@ -30,10 +30,10 @@ Run `make check test build` before handoff. Use the narrower target while iterat
 The data path is:
 
 ```text
-AFM source -> Vite -> index.js ---------------------------> anywidget _esm
-                  -> anywidget.json -> Bundle allowlist
-                  -> chunks/*.js <-> custom messages <-> browser module loader
-                  -> widget.css --------------------------> anywidget _css
+bundle app -> Vite -> index.js ---------------------------> anywidget _esm
+                   -> anywidget.json -> Bundle allowlist
+                   -> chunks/*.js <-> custom messages <-> browser module loader
+                   -> widget.css --------------------------> anywidget _css
 ```
 
 The npm package must not depend on Python project details. The Python package must not implement JavaScript lifecycle behavior. Python validates the manifest and sends allowlisted module source as binary comm buffers. The generated entry requests and evaluates the module graph. anywidget owns host composition and lifecycle signals.
@@ -58,16 +58,16 @@ Each slash-separated artifact path segment must match `[A-Za-z0-9._-]+`. Reject 
 
 `index.js` must be self-contained because anywidget evaluates its text through a Blob URL. Application chunks may reference other manifest modules or HTTP URLs. Keep the static module graph acyclic. Literal relative dynamic imports re-enter the model-scoped loader. Computed imports must resolve to browser URLs. Inline non-CSS assets and reject unlisted chunks, extra assets, unsafe paths, and artifact collisions during the Vite build.
 
-## AFM contract
+## Bundle app contract
 
 The app default export is the public lifecycle boundary. Accept these forms:
 
-- AFM object
+- bundle app object
 - synchronous zero-argument factory
 - asynchronous zero-argument factory
 - initialize-only and render-only definitions
 
-The production bootstrap starts module loading during `initialize` and returns model teardown synchronously so anywidget can deliver custom-message responses. The app `initialize` hook may return cleanup or `undefined`. Object exports are outside this transport contract. Rendering waits for module loading and app initialization, then passes model, element, host, experimental APIs, and lifecycle signal to the app.
+The production bootstrap starts module loading during `initialize` and returns model teardown synchronously so anywidget can deliver custom-message responses. The bundle app `initialize` hook may return cleanup or `undefined`. Rendering waits for module loading and app initialization, then passes model, element, host, experimental APIs, and lifecycle signal to the app.
 
 ## Public APIs
 
@@ -92,7 +92,7 @@ Test behavior through consumer boundaries:
 
 - Vite changes build a fixture and inspect its manifest, bootstrap, app root, and split chunks.
 - Runtime changes cover request correlation, import rewriting, module identity, aborts, and URL cleanup.
-- AFM changes cover object, factory, async factory, cleanup, ordering, and lifecycle failures.
+- Bundle app changes cover object, factory, async factory, cleanup, ordering, and lifecycle failures.
 - Python changes instantiate `Bundle` or `BundledWidget` against real manifests and binary responses.
 - Path changes cover the portable ASCII grammar, reserved basenames, ASCII-case collisions, invalid development URLs, missing files, and symlink containment.
 - Package changes inspect and install the packed npm tarball and Python wheel.
@@ -102,9 +102,9 @@ Keep tests focused on these contracts. Avoid assertions on generated formatting 
 
 ## Versions and releases
 
-`packages/vite/package.json` and `packages/widget/pyproject.toml` carry the registry versions. They must match the release tag exactly. The workspace is currently `0.0.1`.
+`packages/vite/package.json` and `packages/widget/pyproject.toml` carry the registry versions. They must match the release tag exactly.
 
-A `vX.Y.Z` tag starts one build job. That job creates both registry artifacts. npm and PyPI publish the same version concurrently through trusted publishing. Release notes run after both registries accept the artifacts.
+A `v<version>` tag starts one build job. That job creates both registry artifacts. npm and PyPI publish the matching version concurrently through trusted publishing. Release notes run after both registries accept the artifacts.
 
 ## Change discipline
 

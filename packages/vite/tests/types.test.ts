@@ -17,11 +17,11 @@ describe("AnyWidgetBundleAppModule export", () => {
   test("rejects definitions outside the bundle lifecycle contract", () => {
     // @ts-expect-error A bundle app must provide initialize or render.
     const empty: AnyWidgetBundleAppModule = {};
-    const exportsObject: AnyWidgetBundleAppModule = {
-      // @ts-expect-error Bundle initialization cannot publish AFM exports.
+    const objectResult: AnyWidgetBundleAppModule = {
+      // @ts-expect-error Bundle initialization cannot return an object.
       initialize: () => ({ ready: true }),
     };
 
-    expect([empty, exportsObject]).toHaveLength(2);
+    expect([empty, objectResult]).toHaveLength(2);
   });
 });

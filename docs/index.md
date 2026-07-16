@@ -4,25 +4,25 @@ layout: home
 hero:
   name: anywidget-bundle
   text: Build with Vite. Load from Python.
-  tagline: One package name across npm and PyPI for manifest-backed anywidget frontends.
+  tagline: Keep the widget entry lean and serve Vite chunks from the installed Python wheel.
   actions:
     - theme: brand
       text: Get started
-      link: /getting-started
+      link: ./getting-started
     - theme: alt
       text: Vite API
-      link: /vite
+      link: ./vite
 
 features:
-  - title: Split production build
-    details: Vite emits a small index.js bootstrap, an anywidget.json manifest, and the application chunks.
-  - title: Python module serving
-    details: Bundle validates the manifest while BundledWidget serves allowlisted modules through custom messages.
-  - title: Model-scoped loading
-    details: The browser shares one module graph across a model's views and releases its listeners and object URLs during cleanup.
+  - title: Lean widget entry
+    details: Vite emits a small index.js bootstrap for _esm and moves the application graph into separate chunks.
+  - title: Wheel-packaged chunks
+    details: Bundle validates anywidget.json and BundledWidget serves its allowlisted modules from the installed wheel.
+  - title: Lifecycle-scoped loading
+    details: Static modules load with the model, literal dynamic imports load when executed, and views share one model-scoped graph.
 ---
 
-Install the same project name in both ecosystems:
+Install the Vite plugin and Python loader:
 
 ```sh
 pnpm add -D anywidget-bundle vite
