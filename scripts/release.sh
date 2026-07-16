@@ -21,7 +21,7 @@ With no argument, release the current package version. A bump updates every
 JavaScript workspace version with pnpm and applies the result to Python with uv.
 Pass an exact SemVer to start a release-candidate series, then use rc to advance
 it. The script validates the packages, creates any needed release commit, and
-adds an annotated vX.Y.Z tag locally.
+adds an annotated v<version> tag locally.
 EOF
 }
 
@@ -62,6 +62,19 @@ python_version_for() {
   uv version --package anywidget-bundle --dry-run --frozen \
     --output-format json "$1" \
     | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version"
+}
+
+version_is_newer() {
+  node - "$1" "$2" <<'EOF'
+const [candidate, current] = process.argv
+  .slice(2)
+  .map((value) => value.split(".").map(Number));
+for (let index = 0; index < 3; index += 1) {
+  if (candidate[index] === current[index]) continue;
+  process.exit(candidate[index] > current[index] ? 0 : 1);
+}
+process.exit(1);
+EOF
 }
 
 release_version() {
@@ -124,8 +137,10 @@ git pull --ff-only --tags origin main
 
 CURRENT_VERSION="$(release_version)"
 if [[ "$EXACT_RC" == "1" ]]; then
-  [[ "$CURRENT_VERSION" == "$RC_BASE" ]] \
-    || die "Start the $RC_BASE release-candidate series from version $RC_BASE"
+  [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || die "Start a release-candidate series from a stable version"
+  version_is_newer "$RC_BASE" "$CURRENT_VERSION" \
+    || die "Release-candidate base $RC_BASE must be newer than $CURRENT_VERSION"
   git rev-parse -q --verify "refs/tags/v$RC_BASE" >/dev/null \
     && die "Stable release v$RC_BASE already exists"
 fi

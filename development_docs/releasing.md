@@ -1,38 +1,51 @@
 # Releasing
 
-The npm and PyPI distributions use the same name and release line. npm writes a release candidate as `0.0.1-rc.1`. Python normalizes the same version to `0.0.1rc1`.
+Run releases from a clean `main` branch with the npm and Python registry versions aligned. npm uses SemVer such as `0.0.2-rc.1`. Python stores the normalized form `0.0.2rc1`.
 
-Configure each registry's trusted publisher for `peter-gy/anywidget-bundle`, `.github/workflows/publish.yml`, and its matching GitHub environment before pushing the first tag.
+Each registry's trusted publisher is scoped to `peter-gy/anywidget-bundle`, `.github/workflows/publish.yml`, and its `npm` or `pypi` GitHub environment.
 
-Run the release script from a clean `main` branch. With no argument, it validates and tags the current package version:
+## Create a stable release
 
-```sh
-./scripts/release.sh
-```
-
-For a later release, let pnpm apply the version bump across the JavaScript workspace. The script passes the resolved version to uv and synchronizes both package-manager lockfiles:
+Pass `patch`, `minor`, or `major` to update the workspace versions and lockfiles:
 
 ```sh
 ./scripts/release.sh patch
 ```
 
-Use `minor` or `major` for the corresponding version change.
-
-Start a release-candidate series with its exact npm SemVer, then use `rc` for each later candidate:
+With no argument, the script validates and tags the current untagged package version:
 
 ```sh
-./scripts/release.sh 0.0.1-rc.1
+./scripts/release.sh
+```
+
+## Create a release candidate
+
+Start a candidate series from the preceding stable version with the exact npm SemVer:
+
+```sh
+./scripts/release.sh 0.0.2-rc.1
+```
+
+Advance the series with `rc`:
+
+```sh
 ./scripts/release.sh rc
 ```
 
-Use `patch` to promote the current release candidate to its stable version.
-
-The script runs `make check test build`, executes the packed npm package, verifies the Python metadata and import, creates a release commit when versions changed, and adds an annotated `vX.Y.Z` tag. It leaves the release local for review.
-
-Review the release commit and tag, then run the exact atomic push command printed by the script. For a stable `0.0.1` release, it prints:
+Promote the current candidate to its stable base with `patch`:
 
 ```sh
-git push --atomic origin main v0.0.1
+./scripts/release.sh patch
 ```
 
-The publish workflow checks the tag against both registry package manifests, publishes npm prereleases under the `next` tag, publishes both packages through their GitHub environments, and creates the GitHub release notes after both registries accept the artifacts.
+## Publish the tag
+
+The script runs `make check test build`, executes the packed npm package, verifies the Python metadata and import, commits version changes, and creates an annotated `v<version>` tag. It leaves the commit and tag local for review.
+
+Push the exact commit and tag with the command printed by the script:
+
+```sh
+git push --atomic origin main v0.0.2
+```
+
+The publish workflow verifies the tag against both manifests, publishes npm release candidates under `next`, publishes the Python distribution to PyPI, and creates GitHub release notes after both registries accept the artifacts. Stable npm releases use `latest`.
