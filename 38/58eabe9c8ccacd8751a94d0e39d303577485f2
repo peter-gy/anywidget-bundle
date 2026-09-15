@@ -1,0 +1,338 @@
+pnpm-workspace.yaml
+  s_d447ea0770e8dd::t_e8b1c9a5739d23 18
+  s_d447ea0770e8dd::t_5e57d1b4b2f0f5 38-40,43
+  s_d447ea0770e8dd::t_a23eb755b6dddd 24-32
+  s_d447ea0770e8dd::t_4411ec00f7f55a 13-14,41-42
+  s_d447ea0770e8dd::t_ad338d4ea56cb5 21-23,33
+vite.config.ts
+  s_d447ea0770e8dd::t_d3fa55b32d720a 25
+  s_d447ea0770e8dd::t_32fb4c17427d51 23-24,26,35-44,46-53
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 3-8,45
+tools/oxlint/anti-slop/rules/require-safety-comment-for-type-assertion.ts
+  s_d447ea0770e8dd::t_4b720f39cdfd87 1-131
+packages/widget/README.md
+  s_d447ea0770e8dd::t_15334612ab6e76 21-22
+tools/oxlint/anti-slop/index.ts
+  s_d447ea0770e8dd::t_1604fd5aa33bab 1-47
+tools/oxlint/anti-slop/effect/index.ts
+  s_d447ea0770e8dd::t_c3dcde223a3f99 1-21
+tools/oxlint/anti-slop/rules/no-module-mocking.ts
+  s_d447ea0770e8dd::t_32d714b641f3ee 1-80
+tools/oxlint/anti-slop/effect/rules/prefer-effect-match.ts
+  s_d447ea0770e8dd::t_948748c23635b0 1-54
+tools/oxlint/anti-slop/rules/no-unknown-returns.ts
+  s_d447ea0770e8dd::t_679b9a47db500b 1-82
+apps/e2e/prepare.mjs
+  s_d447ea0770e8dd::t_8e3fcd4f9c6ebd 172
+  s_d447ea0770e8dd::t_4e97a256f2c53d 3,25,27,29-30,32,34,36-39,117,159,180
+  s_d447ea0770e8dd::t_799534eb6b670c 1-2,4-7,9,11,13-16,18-21,23,40,42,57,111-116,118-122,125-126,130,132,134,142,144-145,153-157,169
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 67-76,78,80,82,84-91,96
+  s_d447ea0770e8dd::t_bbe4b208f74f18 8,10,12,17,22,24,28,33,35,41,43,62,66,102,107,129,131,133,135,141,143,146,152,158,160,168,170,173,179,181,197
+  s_d447ea0770e8dd::t_669cf0f77573a7 58-59,61,63-65,123-124
+  s_d447ea0770e8dd::t_dbaa72731aaa48 44-56,97-101,103-106,108-110,127-128,136-140,147-151,161-167,174-178,182-184,186-196,198-200
+  s_d447ea0770e8dd::t_523f30be5448a7 171
+  s_d447ea0770e8dd::t_e18644baa17b5c 77,79,81,83,92-95
+  s_d447ea0770e8dd::t_9b9c81c72ce622 185
+packages/vite/tests/compatibility.mjs
+  s_d447ea0770e8dd::t_bbe4b208f74f18 10,12,28,30,41,56,58,60,62,68,72,74,76,84,88,96,98,100,102,104,109,115
+  s_d447ea0770e8dd::t_a63b0e772d4151 140,142
+apps/e2e/package.json
+  s_d447ea0770e8dd::t_55180f0df5a38a 1-2,4-15
+  s_d447ea0770e8dd::t_4411ec00f7f55a 3
+packages/vite/src/runtime.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 33,37,47,58
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 30-31
+  s_d447ea0770e8dd::t_1e849c0ffa0da7 3,13,20,27,32,67,77
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 29
+  s_d447ea0770e8dd::t_dddd9f4886c117 7,70
+packages/vite/tests/types.test.ts
+  s_d447ea0770e8dd::t_206fea0bb5683d 12,19,21
+  s_d447ea0770e8dd::t_bbe4b208f74f18 20
+packages/vite/tests/vite.test.ts
+  s_d447ea0770e8dd::t_35082290dab1bd 113
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 12,297,537-538,546-547,555
+  s_d447ea0770e8dd::t_212449e8f252bb 2,14,102,311,314,321,325,491-492,523,552,560
+  s_d447ea0770e8dd::t_98b923fac62d82 1,11,13,296,298,607-609
+  s_d447ea0770e8dd::t_bbe4b208f74f18 43,101,103,105,111,115,143,156,271,273,281,286,299,303,309,313,315,323,327,350,377,390,407,431,435,455,506,568,572,575,582,586,588,592
+  s_d447ea0770e8dd::t_dbaa72731aaa48 32-42,44-46
+  s_d447ea0770e8dd::t_37a81b61909560 116,310,324,571,573
+package.json
+  s_d447ea0770e8dd::t_32fb4c17427d51 16-18,20
+  s_d447ea0770e8dd::t_55180f0df5a38a 28
+apps/e2e/dev-server.mjs
+  s_d447ea0770e8dd::t_bbe4b208f74f18 4,8,15,17
+  s_d447ea0770e8dd::t_669cf0f77573a7 1,5-7
+  s_d447ea0770e8dd::t_9085006f7250ae 2-3,9-14,16
+  s_d447ea0770e8dd::t_dbaa72731aaa48 18-22
+tools/oxlint/anti-slop/shared/reflect-method.ts
+  s_d447ea0770e8dd::t_260e0bc4999125 1-24
+apps/e2e/shared.js
+  s_d447ea0770e8dd::t_daaba4a9f974ba 1-3
+tools/oxlint/anti-slop/rules/no-shape-in-symbol-names.ts
+  s_d447ea0770e8dd::t_7c089c97020132 1-46
+packages/vite/README.md
+  s_d447ea0770e8dd::t_dddd9f4886c117 26
+tools/oxlint/anti-slop/shared/lexical-type-parameters.ts
+  s_d447ea0770e8dd::t_4de070a5a65c16 1-61
+tools/oxlint/anti-slop/rules/no-reduce-accumulator-copy.ts
+  s_d447ea0770e8dd::t_0b8fe211cc2d79 1-109
+packages/vite/src/index.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 2,8
+packages/widget/pyproject.toml
+  s_d447ea0770e8dd::t_55180f0df5a38a 34-39
+AGENTS.md
+  s_d447ea0770e8dd::t_5e57d1b4b2f0f5 12-15,25-26
+  s_d447ea0770e8dd::t_dddd9f4886c117 80
+tools/oxlint/anti-slop/rules/no-unknown-parameters.ts
+  s_d447ea0770e8dd::t_27c4ec90c73daf 1-69
+tools/oxlint/anti-slop/rules/no-reflect-apply.ts
+  s_d447ea0770e8dd::t_47ac9714e9f7c6 1-28
+tools/oxlint/anti-slop/effect/rules/no-manual-tagged-construction.ts
+  s_d447ea0770e8dd::t_c44f936692e520 1-37
+docs/vite.md
+  s_d447ea0770e8dd::t_0aaf72848d30e7 107
+  s_d447ea0770e8dd::t_15334612ab6e76 65-66,75-78,85-86,106
+  s_d447ea0770e8dd::t_e7c484a773b561 7
+  s_d447ea0770e8dd::t_dddd9f4886c117 103
+docs/python.md
+  s_d447ea0770e8dd::t_15334612ab6e76 96,98-137
+  s_d447ea0770e8dd::t_0aaf72848d30e7 97
+tools/oxlint/anti-slop/effect/shared/tagged-values.ts
+  s_d447ea0770e8dd::t_b9f9daa25bdf1c 1-97
+packages/vite/src/vite.ts
+  s_d447ea0770e8dd::t_dbaa72731aaa48 109-117
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 343-347
+  s_d447ea0770e8dd::t_21926aaf9acb99 2,118
+  s_d447ea0770e8dd::t_bbe4b208f74f18 57,59,61,63,65,67,69,71,73,75,84,96,101,108,119,129,131,134,136,145,152,155,165,169,172,174,176,193,201,203,210,214,222,307,322,349,352,355,358,363,373,378,382,388,394,398,402,406,410,418,436,440,445,480,495,498,503,515,522,531,533,558,561,563,566,568,571,573,583,586,589,602
+  s_d447ea0770e8dd::t_6c1a886e8a331e 1,395,399,405,457,509,512,519
+tools/oxlint/anti-slop/shared/function-parameters.ts
+  s_d447ea0770e8dd::t_4fddbc9a9a26f1 1-49
+packages/vite/tests/dev.test.ts
+  s_d447ea0770e8dd::t_2a11bf442ac964 1,102,154,194,268,557
+  s_d447ea0770e8dd::t_dbaa72731aaa48 57-59,85-87,89-91,385-387,465-470
+  s_d447ea0770e8dd::t_bbe4b208f74f18 12,16,28,34,49,68,72,77,81,84,88,101,105,117,120,123,126,129,134,140,144,157,170,178,182,185,189,197,219,223,242,247,252,256,271,286,292,298,302,306,312,329,335,341,346,350,356,369,376,380,402,416,420,425,441,445,452,459,484,488,499,504,525,528,533
+  s_d447ea0770e8dd::t_1b2baf0542b85c 54,63,103,226,228,383,406,408
+  s_d447ea0770e8dd::t_4a54fee7e671ca 55,227,384,407
+  s_d447ea0770e8dd::t_b5d65b33d581fc 232
+  s_d447ea0770e8dd::t_cfc6ed0a760c84 48,50
+packages/vite/src/protocol.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 7,9,11,54,56,61,64,72,75,79,82,84,87,95,98,118,130,138,145,154,157
+  s_d447ea0770e8dd::t_ad831ba227cb24 4,17,30,50-51,59,181-189,198-199
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 77,190-197,200-208
+tools/oxlint/anti-slop/rules/no-reflect-get.ts
+  s_d447ea0770e8dd::t_8a38a2c292ffbd 1-28
+packages/vite/src/entry.ts
+  s_d447ea0770e8dd::t_abbd88909abeb5 1-2,7
+  s_d447ea0770e8dd::t_7aff4b8725e91c 4
+packages/vite/src/id.ts
+  s_d447ea0770e8dd::t_29003dcf1c92e0 6,15
+  s_d447ea0770e8dd::t_bbe4b208f74f18 5,8,14,18,21
+packages/vite/tests/output-path.test.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 136
+  s_d447ea0770e8dd::t_b8ff2beb38cb93 3,135,137
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 7-9
+apps/e2e/playwright.config.ts
+  s_d447ea0770e8dd::t_9085006f7250ae 1-11,13-29
+  s_d447ea0770e8dd::t_9b9c81c72ce622 12
+docs/getting-started.md
+  s_d447ea0770e8dd::t_15334612ab6e76 103-106,112-114,117
+packages/vite/tests/lifecycle.test.ts
+  s_d447ea0770e8dd::t_11e886ff1e1aec 136
+  s_d447ea0770e8dd::t_dbaa72731aaa48 11-14,20-22,24-31,52-57,63-76,86-88,90-93,101-102,115-117,124-126,128-130,143-150
+  s_d447ea0770e8dd::t_86a16d296112b0 1,33,42,59,78,95,107,134
+  s_d447ea0770e8dd::t_bbe4b208f74f18 19,23,32,41,51,58,77,85,89,94,106,114,118,120,127,133,142,151
+  s_d447ea0770e8dd::t_b5d65b33d581fc 2-10,15-18,34-40,43-50,60-62,79-84,96-100,103-105,108-113,119,121-123,131-132,135,137-141,152-157
+packages/vite/package.json
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 54
+  s_d447ea0770e8dd::t_e7c484a773b561 57
+packages/widget/src/anywidget_bundle/_bundle.py
+  s_d447ea0770e8dd::t_dbaa72731aaa48 262-264
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 269-271
+  s_d447ea0770e8dd::t_21926aaf9acb99 17,231,250-261,265-268,272-274
+packages/vite/src/artifact-path.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 2,4,11,39,46,54
+  s_d447ea0770e8dd::t_e52788974e3abf 9
+apps/e2e/style.css
+  s_d447ea0770e8dd::t_daaba4a9f974ba 1-6
+packages/vite/tests/runtime.test.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 49,71,100,102,104,126
+  s_d447ea0770e8dd::t_297bb8113c00ca 1,112
+  s_d447ea0770e8dd::t_2aa8813aa395d3 105
+.github/workflows/publish.yml
+  s_d447ea0770e8dd::t_d05e1193f108b8 63-73
+  s_d447ea0770e8dd::t_38cb9f96d23fa8 30,32
+  s_d447ea0770e8dd::t_b1468b6a895179 47-49
+packages/vite/src/types.ts
+  s_d447ea0770e8dd::t_f054a6b7d4f1a8 5,9,19,23
+apps/e2e/lazy.js
+  s_d447ea0770e8dd::t_daaba4a9f974ba 1
+tools/oxlint/anti-slop/shared/scope.ts
+  s_d447ea0770e8dd::t_e312e0c030b04b 1-15
+.github/workflows/pages.yml
+  s_d447ea0770e8dd::t_23c7b9177f6bb0 26,28-29
+tools/oxlint/anti-slop/rules/require-readable-spacing.ts
+  s_d447ea0770e8dd::t_dd4099d00f17eb 1-47
+tools/oxlint/anti-slop/rules/no-chained-type-assertions.ts
+  s_d447ea0770e8dd::t_2fee045c90ff21 1-77
+packages/vite/tests/entry.test.ts
+  s_d447ea0770e8dd::t_21926aaf9acb99 8-9
+  s_d447ea0770e8dd::t_fdae1f7be4f56e 106,144,274
+  s_d447ea0770e8dd::t_e0d10b97c8cd87 1,43,79,100,143,277,303,337,371
+  s_d447ea0770e8dd::t_dbaa72731aaa48 132-134,136-138
+  s_d447ea0770e8dd::t_d3ec3f80d7d737 225,227,350-351
+  s_d447ea0770e8dd::t_bbe4b208f74f18 16,21,42,50,66,70,87,91,97,112,116,120,125,131,135,142,146,175,184,190,205,209,221,226,241,245,259,268,276,285,292,296,300,315,324,326,330,332,359
+apps/e2e/serve.py
+  s_d447ea0770e8dd::t_523f30be5448a7 32-33,84-87
+  s_d447ea0770e8dd::t_dbaa72731aaa48 15,19-20,24-25,27,30,37-38,54-55,57,60,64-67,69,72,78-79,88-89,92,102-108,113-123,129-135,138-142,146-155
+  s_d447ea0770e8dd::t_9085006f7250ae 1-14,16-18,21-23,26,28-29,31,34-36,39-53,56,58-59,61-63,68,70-71,73-77,80-83,90-91,93-101,109-112,124-128,136-137,143-145,156
+scripts/release.sh
+  s_d447ea0770e8dd::t_4411ec00f7f55a 10
+tools/oxlint/anti-slop/rules/no-array-filter-map.ts
+  s_d447ea0770e8dd::t_e7c223f2218a99 1-28
+packages/widget/tests/test_bundle.py
+  s_d447ea0770e8dd::t_c9118ef76bb2bb 799-804,806-814,821-832,835-837
+  s_d447ea0770e8dd::t_b1468b6a895179 792-798,805,815-820,833-834,838-839
+development_docs/architecture.md
+  s_d447ea0770e8dd::t_15334612ab6e76 32-33,43-48
+README.md
+  s_d447ea0770e8dd::t_dddd9f4886c117 28
+tools/oxlint/anti-slop/rules/no-known-value-widening.ts
+  s_d447ea0770e8dd::t_f9d11c4e264767 1-415
+apps/e2e/tsconfig.json
+  s_d447ea0770e8dd::t_55180f0df5a38a 1-2,4-5
+  s_d447ea0770e8dd::t_a4f8d0aed84b79 3
+apps/e2e/widget.py
+  s_d447ea0770e8dd::t_32fb4c17427d51 25,36
+  s_d447ea0770e8dd::t_799534eb6b670c 1-5,7-24,26-35,37-45
+  s_d447ea0770e8dd::t_523f30be5448a7 6
+packages/vite/tests/protocol.test.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 21,41,75,92,100,106,110,120,128,131,135,151
+tools/oxlint/anti-slop/rules/no-conditional-empty-object-spread.ts
+  s_d447ea0770e8dd::t_72790e915ae289 1-49
+pyproject.toml
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 9-16
+  s_d447ea0770e8dd::t_e8b1c9a5739d23 3
+  s_d447ea0770e8dd::t_8583116c0d1646 2
+apps/e2e/app.js
+  s_d447ea0770e8dd::t_dbaa72731aaa48 16-18,47-54,59-61
+  s_d447ea0770e8dd::t_bbe4b208f74f18 8,12,15,19,27,33,58
+  s_d447ea0770e8dd::t_799534eb6b670c 1-7,9-11,13-14,20-26,28-32,34-46,55-57,62-63
+tools/oxlint/anti-slop/effect/rules/no-service-constructor-imports.ts
+  s_d447ea0770e8dd::t_aee64a7d58a3fb 1-52
+tools/oxlint/anti-slop/rules/no-unknown-type-aliases.ts
+  s_d447ea0770e8dd::t_e412b3603b2489 1-54
+tools/oxlint/anti-slop/rules/no-unsafe-dictionary-type.ts
+  s_d447ea0770e8dd::t_3a969ec42b68d1 1-154
+tools/oxlint/anti-slop/effect/rules/no-manual-tag-comparison.ts
+  s_d447ea0770e8dd::t_7ad5ab9af05f11 1-45
+tools/oxlint/anti-slop/shared/array-method.ts
+  s_d447ea0770e8dd::t_648cb7a5e267af 1-94
+tools/oxlint/anti-slop/effect/rules/no-manual-effect-error-tag.ts
+  s_d447ea0770e8dd::t_d0ae513fca9c10 1-52
+tools/oxlint/anti-slop/rules/no-runtime-typeof.ts
+  s_d447ea0770e8dd::t_eeda25fb074184 1-77
+packages/vite/tests/module-loader.test.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 25,29,33,44,48,50,52,57,61,64,85,109,137,149,156,164,170,187,198,211,231,235,240,288,290,294,321,345,351,353,362,370,374,393
+  s_d447ea0770e8dd::t_a63b0e772d4151 1
+  s_d447ea0770e8dd::t_b1468b6a895179 18-22,24,26,28,30,32,35-43,45-47,49,53-56,58-60,62-63,65-68
+  s_d447ea0770e8dd::t_0c46d1fc583d46 167-169,171,174-175
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 348-349
+  s_d447ea0770e8dd::t_dc9991cc52d55e 369,371,375
+  s_d447ea0770e8dd::t_f1c4ba81e2291a 6,34,346,350,354,358,360
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 347
+development_docs/development.md
+  s_d447ea0770e8dd::t_8583116c0d1646 5-6
+  s_d447ea0770e8dd::t_15334612ab6e76 10,19,24-27
+  s_d447ea0770e8dd::t_dddd9f4886c117 22,48-53
+packages/widget/src/anywidget_bundle/_hatch.py
+  s_d447ea0770e8dd::t_55180f0df5a38a 1-26
+packages/vite/tests/testing.ts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 5,39,46,59,62,65,68,107,115,124,130,142,145,178
+  s_d447ea0770e8dd::t_21926aaf9acb99 50
+  s_d447ea0770e8dd::t_84e31c4824fc56 1,129,131,146,183
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 13-19,22-23,71-74,186-193
+  s_d447ea0770e8dd::t_4b0787753d2ed9 4,11,37-38,41-42,44-45,51,56,76,108-109,119,158,160
+  s_d447ea0770e8dd::t_9b407c5ba972df 9
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 184
+packages/vite/src/lifecycle.ts
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 503
+  s_d447ea0770e8dd::t_a4f8d0aed84b79 460,462-466,468
+  s_d447ea0770e8dd::t_abbd88909abeb5 2-3,5-7,11-23,25-34,36-48,50-52,54-58,60,62-86,88-93,95-97,99-105,107-109,111-115,117-118,120-121,123-124,126-141,143-146,148,150-159,161-165,167-169,171,178-183,185-187,189-193,196-203,205-207,210-211,214-216,218-222,224-225,227,229-231,238-244,247-248,250-254,256-264,266-267,270,272-274,276-282,284-288,290-298,300-302,304,306-308,310-317,319-326,328,330-332,334-347,349-351,353-365,367-369,371-376,378-382,384-390,392-395,397-418,420-424,426,428-430,432-438,440-442,449-456,469-470,472-474,478-479,488-489,492-493,499-500,505
+  s_d447ea0770e8dd::t_bbe4b208f74f18 87,94,98,106,110,116,119,122,125,142,147,149,166,170,184,188,194,204,209,212,223,228,245,255,265,268,283,289,299,303,305,318,327,329,348,366,383,396,419,425,427,461,467,476,480,482,490,494,501
+  s_d447ea0770e8dd::t_dbaa72731aaa48 9-10,172-177,232-237,443-448,458-459
+  s_d447ea0770e8dd::t_f4f567f0c265b7 1,4,8,24,35,49,53,59,160,195,208,213,217,246,249,275,309,333,352,370,377,391,431,439,457,471,475,477,481,491,502,504
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 271,483-487,495-498
+  s_d447ea0770e8dd::t_21926aaf9acb99 61,226,269
+packages/vite/src/module-loader.ts
+  s_d447ea0770e8dd::t_21926aaf9acb99 106,110,120-126,164-165
+  s_d447ea0770e8dd::t_dbaa72731aaa48 166-172
+  s_d447ea0770e8dd::t_bbe4b208f74f18 11,13,15,72,81,83,94,104,107,111,114,116,127,134,143,154,156,160,180,195,197,200,205,211,213,218,221,223,235,239,241,245,259,262,265,268,279,285,290,298,316,319,324,330,338,346,348,354,357,371
+  s_d447ea0770e8dd::t_ba1c82e65fbba3 18,24,46,51,100,367,387
+apps/e2e/pixel.svg
+  s_d447ea0770e8dd::t_daaba4a9f974ba 1
+packages/vite/src/status.ts
+  s_d447ea0770e8dd::t_dbaa72731aaa48 3-17
+  s_d447ea0770e8dd::t_bbe4b208f74f18 18,20
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 23
+  s_d447ea0770e8dd::t_abbd88909abeb5 1-2,19,21,26-29
+  s_d447ea0770e8dd::t_c867b6665c83b6 22,24-25
+apps/docs/.vitepress/config.mts
+  s_d447ea0770e8dd::t_bbe4b208f74f18 4
+tools/oxlint/anti-slop/shared/type-alias-resolution.ts
+  s_d447ea0770e8dd::t_7d5f815bbad89f 1-250
+tools/oxlint/anti-slop/rules/no-object-parameters.ts
+  s_d447ea0770e8dd::t_cce8262a294f26 1-83
+tools/oxlint/anti-slop/UPSTREAM.md
+  s_d447ea0770e8dd::t_d3fa55b32d720a 1-8,10
+  s_d447ea0770e8dd::t_4411ec00f7f55a 9,11
+knip.jsonc
+  s_d447ea0770e8dd::t_0aaf72848d30e7 6-9
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 12-18,23-25
+  s_d447ea0770e8dd::t_c7920c81d3b868 1-5,10-11,19-22,26
+tools/oxlint/anti-slop/rules/no-widen-then-assert.ts
+  s_d447ea0770e8dd::t_313fe2a8571dba 1-366
+apps/e2e/bundle.spec.ts
+  s_d447ea0770e8dd::t_9085006f7250ae 11-29,33-42,44,46-47,53-56,62-63,73,77-79,81-84,88-89,93-94,104-108,112-115,117-120,126-127,131-133,137-145,149-151,157-160,164-166,171-174
+  s_d447ea0770e8dd::t_e94e8b74cdd248 1-8,10,59,155
+  s_d447ea0770e8dd::t_669cf0f77573a7 95-96,103
+  s_d447ea0770e8dd::t_523f30be5448a7 67-69
+  s_d447ea0770e8dd::t_bbe4b208f74f18 43,45,48,57,61,116,128,130,152,156,161,163
+  s_d447ea0770e8dd::t_dbaa72731aaa48 30-32,49-52,58,60,64-66,70-72,74-76,85-87,90-92,97-101,109-111,122-125,134-136,146-148,153-154,167-170
+  s_d447ea0770e8dd::t_ce1a999e3f510c 162
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 9,80,121,129
+packages/vite/src/dev.ts
+  s_d447ea0770e8dd::t_6dabdfd6dd6385 1,4
+  s_d447ea0770e8dd::t_abbd88909abeb5 2,7,10-12
+  s_d447ea0770e8dd::t_dbaa72731aaa48 5-6
+Makefile
+  s_d447ea0770e8dd::t_32fb4c17427d51 12
+  s_d447ea0770e8dd::t_8661a110a15097 13-17,21,25
+  s_d447ea0770e8dd::t_cd092074b35753 3,26-29
+.github/workflows/ci.yml
+  s_d447ea0770e8dd::t_c4c4f374b07e6f 19,21-22
+  s_d447ea0770e8dd::t_8661a110a15097 121
+  s_d447ea0770e8dd::t_cd092074b35753 36-38,40-41
+  s_d447ea0770e8dd::t_fd5cd8c03853bb 44-54
+tools/oxlint/anti-slop/shared/dictionary-types.ts
+  s_d447ea0770e8dd::t_45ba96a30c43ce 1-515
+packages/vite/src/guards.ts
+  s_d447ea0770e8dd::t_d4557ebc5b5e38 3-5,21-23,28-32
+  s_d447ea0770e8dd::t_cdec88c4dc2da1 27
+  s_d447ea0770e8dd::t_beabbd9b3dabe7 1-2,6-20,24-26,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3858eabe9c8ccacd8751a94d0e39d303577485f2",
+  "prompts": {},
+  "sessions": {
+    "s_d447ea0770e8dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a544-e7bd-73e0-adc6-4af2633ee207",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Péter Ferenc Gyarmati <dev.petergy@gmail.com>"
+    }
+  }
+}
