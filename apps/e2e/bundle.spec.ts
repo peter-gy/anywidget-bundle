@@ -12,7 +12,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 
 async function openNotebook(page: Page, name: string) {
-  await page.goto(`http://127.0.0.1:27354/lab/tree/${name}.ipynb`);
+  await page.goto(`http://127.0.0.1:27354/lab/workspaces/${name}/tree/${name}.ipynb?reset`);
+  await expect(page.getByRole("tab", { name: `${name}.ipynb`, exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(page.getByRole("button", { name: "Bundle E2E | Idle", exact: true })).toBeVisible();
 }
 
