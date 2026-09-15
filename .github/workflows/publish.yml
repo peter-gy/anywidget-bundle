@@ -4,6 +4,19 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: Existing tag whose PyPI upload failed after npm succeeded
+        required: true
+        type: string
+      artifact-run-id:
+        description: Original tag-push Publish run containing release-packages
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.release-tag || github.ref_name }}
 
 permissions:
   contents: read
@@ -16,17 +29,47 @@ jobs:
   build:
     name: Build release artifacts
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       node-version: ${{ steps.node-version.outputs.version }}
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release-tag) || github.sha }}
+
+      - name: Verify recovery source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact-run-id }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+          [[ "$ARTIFACT_RUN_ID" =~ ^[0-9]+$ ]]
+          release_sha="$(git rev-parse HEAD)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN_ID" \
+            | jq -e --arg sha "$release_sha" --arg tag "$RELEASE_TAG" \
+              '.head_sha == $sha and .head_branch == $tag and .event == "push" and .path == ".github/workflows/publish.yml"'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN_ID/jobs" \
+            | jq -e 'any(.jobs[]; .name == "Publish to npm" and .conclusion == "success")'
+
+      - name: Recover original release artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-packages
+          path: dist
+          run-id: ${{ inputs.artifact-run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read Node.js version
         id: node-version
         run: echo "version=$(cat .node-version)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Vite+
+        if: github.event_name == 'push'
         uses: voidzero-dev/setup-vp@9fd26ff49f9b5e6276c2b493da4454ad4527f7f4 # v1.20.0
         with:
           version-file: pnpm-workspace.yaml
@@ -42,15 +85,17 @@ jobs:
           enable-cache: true
 
       - name: Install Python workspace
+        if: github.event_name == 'push'
         run: uv sync --frozen
 
       - name: Install browser
+        if: github.event_name == 'push'
         run: pnpm --filter @anywidget-bundle/e2e exec playwright install --with-deps chromium
 
       - name: Verify release version
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${RELEASE_TAG#v}"
           npm_version="$(node -p "require('./packages/vite/package.json').version")"
           pypi_version="$(uv run python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("packages/widget/pyproject.toml").read_text())["project"]["version"])')"
           expected_pypi_version="$(uv version --package anywidget-bundle --dry-run --frozen --output-format json "$version" | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version")"
@@ -58,10 +103,11 @@ jobs:
           test "$expected_pypi_version" = "$pypi_version"
 
       - name: Verify workspace
+        if: github.event_name == 'push'
         run: make check test build
 
       - name: Upload browser results
-        if: always()
+        if: always() && github.event_name == 'push'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: bundle-browser-results
@@ -72,12 +118,13 @@ jobs:
           if-no-files-found: ignore
 
       - name: Pack npm package
+        if: github.event_name == 'push'
         run: pnpm --filter anywidget-bundle pack --pack-destination dist/npm
 
       - name: Check release artifacts
         shell: bash
         run: |
-          npm_version="${GITHUB_REF_NAME#v}"
+          npm_version="${RELEASE_TAG#v}"
           pypi_version="$(uv version --package anywidget-bundle --short)"
           wheel="dist/python/anywidget_bundle-${pypi_version}-py3-none-any.whl"
           test -f "dist/npm/anywidget-bundle-${npm_version}.tgz"
@@ -94,7 +141,7 @@ jobs:
             dist/npm/anywidget-bundle-*.tgz
             dist/python/anywidget_bundle-*.whl
             dist/python/anywidget_bundle-*.tar.gz
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: error
 
   publish-npm:
@@ -122,13 +169,22 @@ jobs:
           path: dist
 
       - name: Publish npm package
+        if: github.event_name == 'push'
         shell: bash
         run: |
           npm_tag="latest"
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$RELEASE_TAG" == *-* ]]; then
             npm_tag="next"
           fi
           npx --yes npm@11.12.1 publish --access public --tag "$npm_tag" dist/npm/anywidget-bundle-*.tgz
+
+      - name: Verify existing npm publication
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          version="${RELEASE_TAG#v}"
+          expected="$(npm view "anywidget-bundle@$version" dist.integrity)"
+          actual="sha512-$(openssl dgst -sha512 -binary "dist/npm/anywidget-bundle-$version.tgz" | openssl base64 -A)"
+          test "$expected" = "$actual"
 
   publish-pypi:
     name: Publish to PyPI
@@ -148,7 +204,7 @@ jobs:
           path: dist
 
       - name: Publish Python package
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist/python
 
@@ -163,6 +219,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Read Node.js version
         id: node-version
@@ -178,9 +235,9 @@ jobs:
         shell: bash
         run: |
           args=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$RELEASE_TAG" == *-* ]]; then
             args+=(--prerelease)
           fi
-          npx changelogithub@14.0.0 "${args[@]}"
+          npx changelogithub@14.0.0 --to "$RELEASE_TAG" "${args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
