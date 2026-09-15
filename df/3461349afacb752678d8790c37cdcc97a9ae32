@@ -1,0 +1,22 @@
+development_docs/releasing.md
+  s_d447ea0770e8dd::t_a292779d540096 52-65
+.github/workflows/publish.yml
+  s_d447ea0770e8dd::t_a292779d540096 7-19,32-34,40,42-65,72,88,92,98,106,110,121,127,144,172,176,181-188,207,238,241
+  s_d447ea0770e8dd::t_43e5a0c8cfad42 41,222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "df3461349afacb752678d8790c37cdcc97a9ae32",
+  "prompts": {},
+  "sessions": {
+    "s_d447ea0770e8dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a544-e7bd-73e0-adc6-4af2633ee207",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Péter Ferenc Gyarmati <dev.petergy@gmail.com>"
+    }
+  }
+}
