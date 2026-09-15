@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // Vendored rules are maintained against their recorded upstream snapshot.
+  "ignore": ["tools/oxlint/anti-slop/**"],
+  "workspaces": {
+    ".": {
+      // VitePress generates Vue imports from Markdown under the root docs directory.
+      "ignoreDependencies": ["vue"],
+    },
+    "packages/vite": {
+      // Vite resolves these build roots and the development runtime by filename.
+      "entry": [
+        "src/index.ts",
+        "src/build.ts",
+        "src/app-entry.ts",
+        "src/dev.ts",
+        "tests/compatibility.mjs",
+      ],
+    },
+    "apps/e2e": {
+      // The runner copies app.js into an isolated consumer and launches the server.
+      "entry": ["app.js", "dev-server.mjs"],
+      "ignoreBinaries": ["uv"],
+    },
+  },
+}

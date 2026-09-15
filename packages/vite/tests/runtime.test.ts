@@ -1,3 +1,4 @@
+import { isCallable } from "../src/guards";
 import type { AnyModel } from "@anywidget/types";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
@@ -45,6 +46,7 @@ describe("anywidget bundle runtime", () => {
 				export default { render({ el }) { count += 1; el.textContent = String(count); } };`,
       ],
     ]);
+
     const first = respondingModel(modules);
     const second = respondingModel(modules);
     const firstSignal = lifecycleSignal();
@@ -66,6 +68,7 @@ describe("anywidget bundle runtime", () => {
     const backend = respondingModel(
       new Map([["chunks/app.js", `export default { render() {} };`]]),
     );
+
     const controller = trackedController();
 
     await loadAnyWidgetBundleApp(backend.model, "chunks/app.js", controller.signal, {
@@ -94,15 +97,19 @@ async function loadApp(
   const loaded = await loadAnyWidgetBundleApp<TestState>(model, appPath, signal, {
     createModuleUrl: (source, path) => dataModuleUrl(source, `${scope}-${path}`),
   });
+
   const app = await instantiate(loaded);
+
   if (!app.render) throw new Error("Expected a render lifecycle");
+
+  // SAFETY: The render hook was checked immediately above.
   return app as RenderableApp;
 }
 
 async function instantiate(
   module: AnyWidgetBundleAppModule<TestState>,
 ): Promise<AnyWidgetBundleApp<TestState>> {
-  return typeof module === "function" ? await module() : module;
+  return isCallable(module) ? await module() : module;
 }
 
 function dataModuleUrl(source: string, identity: string): string {
@@ -116,5 +123,6 @@ function lifecycleSignal(): AbortSignal {
 function trackedController(): AbortController {
   const controller = new AbortController();
   controllers.push(controller);
+
   return controller;
 }

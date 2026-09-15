@@ -789,3 +789,51 @@ def test_bundled_widget_reports_invalid_entry_utf8(tmp_path: pathlib.Path) -> No
 
     with pytest.raises(BundleArtifactError, match="could not be read"):
         Widget()
+
+
+def test_bundled_widget_publishes_browser_lifecycle_status(tmp_path: pathlib.Path) -> None:
+    _write_bundle(tmp_path)
+    widget = _widget_class_for_static_dir(tmp_path)()
+    changes: list[dict[str, Any]] = []
+    widget.observe(lambda change: changes.append(change["new"]), names="bundle_status")
+    error = {
+        "phase": "load",
+        "name": "SyntaxError",
+        "message": "invalid module",
+        "stack": "source:1",
+    }
+    for state in ("loading", "error", "ready", "disposed"):
+        widget._handle_custom_msg(
+            {
+                "type": "anywidget-bundle:status",
+                "version": 1,
+                "state": state,
+                **({"error": error} if state == "error" else {}),
+            },
+            [],
+        )
+    assert [change["state"] for change in changes] == ["loading", "error", "ready", "disposed"]
+    assert changes[1]["error"] == error
+    assert widget.sent == []
+    widget.close()
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"version": True},
+        {"state": "unknown"},
+        {"state": "error"},
+        {"state": "error", "error": {"phase": "load", "name": "Error", "message": 42, "stack": ""}},
+    ],
+)
+def test_bundled_widget_ignores_invalid_status(
+    tmp_path: pathlib.Path, updates: dict[str, Any]
+) -> None:
+    _write_bundle(tmp_path)
+    widget = _widget_class_for_static_dir(tmp_path)()
+    widget._handle_custom_msg(
+        {"type": "anywidget-bundle:status", "version": 1, "state": "ready", **updates}, []
+    )
+    assert widget.bundle_status == {"state": "idle"}
+    widget.close()

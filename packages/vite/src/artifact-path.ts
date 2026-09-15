@@ -1,11 +1,14 @@
 const JAVASCRIPT_EXTENSIONS = [".js", ".mjs"] as const;
+
 const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+
 const RESERVED_FILENAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
 // Manifest paths cross JavaScript, Python, URLs, archives, and filesystems.
 // Restrict every segment to the portable ASCII subset shared by each boundary.
-export function isSafeArtifactPath(value: string): boolean {
+function isSafeArtifactPath(value: string): boolean {
   const parts = value.split("/");
+
   return (
     value.length > 0 &&
     !value.startsWith("/") &&
@@ -33,12 +36,14 @@ export function isStylesheetArtifactPath(value: string): boolean {
 
 export function javascriptExtension(value: string): ".js" | ".mjs" {
   if (hasArtifactExtension(value, ".mjs")) return ".mjs";
+
   if (hasArtifactExtension(value, ".js")) return ".js";
   throw new Error(`Expected a JavaScript bundle path, received ${value}.`);
 }
 
 function hasArtifactExtension(value: string, extension: string): boolean {
   const name = value.slice(value.lastIndexOf("/") + 1);
+
   return name.length > extension.length && name.endsWith(extension);
 }
 
@@ -46,6 +51,7 @@ export function artifactPathsConflict(paths: readonly string[]): boolean {
   // Portable paths still cross case-sensitive and case-insensitive filesystems.
   // Catch ASCII case aliases and file-directory overlaps before writing them.
   const normalized = paths.map(asciiLowercase);
+
   return normalized.some((path, index) =>
     normalized.some((other, otherIndex) =>
       index === otherIndex ? false : path === other || path.startsWith(`${other}/`),

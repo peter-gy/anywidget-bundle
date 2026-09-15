@@ -27,19 +27,14 @@ jobs:
         run: echo "version=$(cat .node-version)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Vite+
-        uses: voidzero-dev/setup-vp@2dec1e33f4ab2c6d5bce1b0c4607961bb1a3f7a1 # v1
+        uses: voidzero-dev/setup-vp@9fd26ff49f9b5e6276c2b493da4454ad4527f7f4 # v1.20.0
         with:
-          version: 0.2.4
+          version-file: pnpm-workspace.yaml
           node-version: ${{ steps.node-version.outputs.version }}
           sfw: true
           cache: false
           run-install: |
             - args: ['--frozen-lockfile']
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: 11.13.0
 
       - name: Set up uv
         uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
@@ -48,6 +43,9 @@ jobs:
 
       - name: Install Python workspace
         run: uv sync --frozen
+
+      - name: Install browser
+        run: pnpm --filter @anywidget-bundle/e2e exec playwright install --with-deps chromium
 
       - name: Verify release version
         shell: bash
@@ -61,6 +59,17 @@ jobs:
 
       - name: Verify workspace
         run: make check test build
+
+      - name: Upload browser results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: bundle-browser-results
+          path: |
+            dist/e2e/results
+            dist/e2e/report.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Pack npm package
         run: pnpm --filter anywidget-bundle pack --pack-destination dist/npm

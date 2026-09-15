@@ -25,7 +25,7 @@ export default {
   render({ el }) {
     el.textContent = "Hello from anywidget";
   },
-} satisfies AnyWidgetBundleApp;
+} satisfies AnyWidgetBundleApp<{}>;
 ```
 
 ```ts

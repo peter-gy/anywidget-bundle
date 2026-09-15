@@ -4,15 +4,15 @@ Guidance for coding agents working in this Vite+ and uv workspace. Read this fil
 
 ## Commands
 
-| Purpose            | Command                          | Expected result                               |
-| ------------------ | -------------------------------- | --------------------------------------------- |
-| Install JavaScript | `pnpm install --frozen-lockfile` | Lockfile accepted                             |
-| Install Python     | `uv sync --frozen`               | Lockfile accepted                             |
-| Format             | `make format`                    | JavaScript and Python sources are formatted   |
-| Check              | `make check`                     | Vite+, TypeScript, Ruff, ty, and Pyrefly pass |
-| Test               | `make test`                      | Vitest and pytest pass                        |
-| Build              | `make build`                     | npm, Python, and docs artifacts build         |
-| Full gate          | `make check test build`          | Check, test, and build pass                   |
+| Purpose            | Command                          | Expected result                                                |
+| ------------------ | -------------------------------- | -------------------------------------------------------------- |
+| Install JavaScript | `pnpm install --frozen-lockfile` | Lockfile accepted                                              |
+| Install Python     | `uv sync --frozen`               | Lockfile accepted                                              |
+| Format             | `make format`                    | JavaScript and Python sources are formatted                    |
+| Check              | `make check`                     | Vite+, anti-slop, Knip, TypeScript, Ruff, ty, and Pyrefly pass |
+| Test               | `make test`                      | Vitest, pytest, and packed browser tests pass                  |
+| Build              | `make build`                     | npm, Python, and docs artifacts build                          |
+| Full gate          | `make check test build`          | Check, test, and build pass                                    |
 
 Run `make check test build` before handoff. Use the narrower target while iterating.
 
@@ -22,6 +22,8 @@ Run `make check test build` before handoff. Use the narrower target while iterat
 - `packages/widget` publishes PyPI `anywidget-bundle`. It owns manifest resolution, the module allowlist, custom-message responses, and the `Bundle` and `BundledWidget` APIs.
 - `docs` contains installed-user documentation.
 - `apps/docs` contains VitePress tooling.
+- `apps/e2e` installs packed artifacts and tests them in JupyterLab.
+- `tools/oxlint/anti-slop` contains the vendored lint rules and their provenance.
 - `development_docs` contains contributor and release contracts.
 - `.github/workflows` owns CI, Pages deployment, and trusted publishing.
 
@@ -75,7 +77,7 @@ The npm package exports:
 
 - default and named `anywidgetBundle`
 - plugin option and output option types
-- bundle app, app module, initialize, and model-state types
+- bundle app, app module, and initialize types with explicit model-state parameters
 
 The Python package exports:
 

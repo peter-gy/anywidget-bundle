@@ -100,14 +100,21 @@ The consumer Python wheel owns its generated frontend directory. Include the com
 For Hatchling, declare the generated directory as a build artifact:
 
 ```toml
+[build-system]
+requires = ["hatchling", "anywidget-bundle[build]"]
+build-backend = "hatchling.build"
+
 [tool.hatch.build]
 artifacts = ["src/weather_widget/static/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/weather_widget"]
+
+[tool.hatch.build.hooks.anywidget-bundle]
+directory = "src/weather_widget/static"
 ```
 
-Validate the generated graph before building the distribution:
+The build hook validates the manifest and every named artifact before packaging. To validate the tree directly:
 
 ```python
 from weather_widget import WeatherWidget

@@ -8,17 +8,20 @@ import { createBundleId } from "./id";
 // Blob modules have no package-relative route back to this loader. Rewritten
 // relative dynamic imports use this registry for the owning model graph.
 const LOADER_REGISTRY = "anywidget-bundle.loaders.v1";
+
 const STATIC_IMPORT = 1;
+
 const DYNAMIC_IMPORT = 2;
+
 const IMPORT_META = 3;
 
-type LoaderRegistry = Map<string, (path: string) => Promise<unknown>>;
+type LoaderRegistry = Map<string, (path: string) => Promise<object>>;
 
 type ModuleLoaderState = {
   id: string;
   signal: AbortSignal;
   reader: ModuleReader;
-  modules: Map<string, Promise<unknown>>;
+  modules: Map<string, Promise<object>>;
   sources: Map<string, Promise<ParsedModule>>;
   urls: Map<string, string>;
   moduleUrls: Set<string>;
@@ -40,12 +43,12 @@ type Replacement = {
 
 export type ModuleLoaderOptions = {
   createModuleUrl?: (source: string, path: string) => string;
-  importModule?: (url: string) => Promise<unknown>;
+  importModule?: (url: string) => Promise<object>;
   revokeModuleUrl?: (url: string) => void;
 };
 
 export type ModuleLoader = {
-  import(path: string): Promise<unknown>;
+  import(path: string): Promise<object>;
   dispose(): void;
 };
 
@@ -66,6 +69,7 @@ export function createModuleLoader(
     disposed: false,
     options,
   };
+
   const registry = moduleLoaderRegistry();
   const load = (path: string) => importModule(state, path);
   registry.set(state.id, load);
@@ -74,7 +78,9 @@ export function createModuleLoader(
     if (state.disposed) return;
     state.disposed = true;
     signal.removeEventListener("abort", dispose);
+
     if (registry.get(state.id) === load) registry.delete(state.id);
+
     // Imported modules retain these URLs for shared and deferred imports, so
     // URLs stay live until the loader lifecycle ends.
     for (const url of state.moduleUrls) revokeUrl(state, url);
@@ -85,35 +91,47 @@ export function createModuleLoader(
   };
 
   signal.addEventListener("abort", dispose, { once: true });
+
   if (signal.aborted) dispose();
 
   return { import: load, dispose };
 }
 
-async function importModule(state: ModuleLoaderState, path: string): Promise<unknown> {
+async function importModule(state: ModuleLoaderState, path: string): Promise<object> {
   assertActive(state);
   const modulePath = normalizeModulePath(path);
   const existing = state.modules.get(modulePath);
+
   if (existing) return existing;
+  let evaluating = false;
+
   const next = enqueueModuleUrl(state, modulePath).then((url) => {
     assertActive(state);
+    evaluating = true;
+
     return (state.options.importModule ?? importModuleUrl)(url);
   });
+
   state.modules.set(modulePath, next);
+
   try {
     return await next;
   } catch (error) {
-    // Drop the module, URL, and parsed source together so transient transport,
-    // parsing, or evaluation failures can retry cleanly.
-    if (state.modules.get(modulePath) === next) state.modules.delete(modulePath);
-    discardUrl(state, modulePath);
-    state.sources.delete(modulePath);
+    // Native ESM caches evaluation failures by URL, including failed dependencies.
+    // Preserve that result and identity. Only pre-evaluation failures may retry.
+    if (!evaluating) {
+      if (state.modules.get(modulePath) === next) state.modules.delete(modulePath);
+      discardUrl(state, modulePath);
+      state.sources.delete(modulePath);
+    }
+
     throw error;
   }
 }
 
 function enqueueModuleUrl(state: ModuleLoaderState, path: string): Promise<string> {
   const existing = state.urls.get(path);
+
   if (existing) return Promise.resolve(existing);
   // Serialize graph construction so concurrent roots share one URL and one ESM
   // instance for each module path.
@@ -122,6 +140,7 @@ function enqueueModuleUrl(state: ModuleLoaderState, path: string): Promise<strin
     () => undefined,
     () => undefined,
   );
+
   return result;
 }
 
@@ -132,13 +151,25 @@ async function createModuleUrl(
 ): Promise<string> {
   assertActive(state);
   const existing = state.urls.get(path);
+
   if (existing) return existing;
+
   if (ancestors.includes(path)) {
     throw new Error(`Static anywidget bundle import cycle: ${[...ancestors, path].join(" -> ")}`);
   }
+
   // Blob source needs concrete URLs for static dependencies before its own URL
   // can be created. This dependency-first order also makes static cycles invalid.
   const parsed = await readParsedModule(state, path);
+  // Read sibling sources concurrently while URL construction stays serialized.
+  // Shared dependencies still receive exactly one module URL.
+  await Promise.all(
+    parsed.imports
+      .filter(
+        (record) => isStaticImport(record) && record.n !== undefined && isRelativeImport(record.n),
+      )
+      .map((record) => readParsedModule(state, importPath(path, record))),
+  );
   const nextAncestors = [...ancestors, path];
   const dependencyUrls = new Map<string, string>();
   await loadStaticDependencies(state, parsed.imports, path, nextAncestors, dependencyUrls);
@@ -146,6 +177,7 @@ async function createModuleUrl(
   assertActive(state);
   const url = createUrl(state, source, path);
   state.urls.set(path, url);
+
   return url;
 }
 
@@ -160,26 +192,35 @@ async function loadStaticDependencies(
   // URL cache entries appear after a module is fully rewritten. Walk siblings
   // sequentially so branches sharing a dependency cannot mint duplicate URLs.
   const record = imports[index];
+
   if (!record) return;
+
   if (isStaticImport(record) && record.n !== undefined && isRelativeImport(record.n)) {
     const dependencyPath = importPath(path, record);
+
     if (!urls.has(dependencyPath)) {
       urls.set(dependencyPath, await createModuleUrl(state, dependencyPath, ancestors));
     }
   }
+
   await loadStaticDependencies(state, imports, path, ancestors, urls, index + 1);
 }
 
 async function readParsedModule(state: ModuleLoaderState, path: string): Promise<ParsedModule> {
   const existing = state.sources.get(path);
+
   if (existing) return existing;
+
   const next = state.reader.read(path).then(async (source) => {
     await init;
     const [imports] = parse(source, path);
     validateImports(path, imports);
+
     return { source, imports };
   });
+
   state.sources.set(path, next);
+
   try {
     return await next;
   } catch (error) {
@@ -191,13 +232,17 @@ async function readParsedModule(state: ModuleLoaderState, path: string): Promise
 function validateImports(path: string, imports: readonly ImportSpecifier[]): void {
   for (const record of imports) {
     if (record.t === IMPORT_META) continue;
+
     if (record.t !== STATIC_IMPORT && record.t !== DYNAMIC_IMPORT) {
       throw new Error(`Unsupported import syntax in anywidget bundle module ${path}.`);
     }
+
     if (record.t === DYNAMIC_IMPORT && record.n === undefined) continue;
+
     if (record.n === undefined || (!isRelativeImport(record.n) && !isUrlImport(record.n))) {
       throw new Error(`Unsupported import in anywidget bundle module ${path}.`);
     }
+
     if (isRelativeImport(record.n)) resolveRelativePath(path, record.n);
   }
 }
@@ -211,12 +256,16 @@ function rewriteImports(
   // Literal relative dynamic imports re-enter this loader. URL and computed
   // dynamic imports remain native browser imports.
   const replacements: Replacement[] = [];
+
   for (const record of parsed.imports) {
     if (record.t === IMPORT_META) continue;
+
     if (record.n === undefined || !isRelativeImport(record.n)) continue;
     const dependencyPath = importPath(path, record);
+
     if (isStaticImport(record)) {
       const url = dependencyUrls.get(dependencyPath);
+
       if (!url) throw new Error(`Could not resolve bundle module ${dependencyPath}.`);
       replacements.push({ start: record.s, end: record.e, value: url });
     } else {
@@ -227,15 +276,18 @@ function rewriteImports(
       });
     }
   }
+
   return applyReplacements(parsed.source, replacements);
 }
 
 function applyReplacements(source: string, replacements: readonly Replacement[]): string {
   let result = source;
+
   // Apply edits right to left so earlier lexer offsets remain valid.
   for (const replacement of [...replacements].sort((left, right) => right.start - left.start)) {
     result = `${result.slice(0, replacement.start)}${replacement.value}${result.slice(replacement.end)}`;
   }
+
   return result;
 }
 
@@ -243,6 +295,7 @@ function importPath(path: string, record: ImportSpecifier): string {
   if (record.n === undefined) {
     throw new Error(`Unsupported import in anywidget bundle module ${path}.`);
   }
+
   return resolveRelativePath(path, record.n);
 }
 
@@ -260,17 +313,21 @@ function isUrlImport(specifier: string): boolean {
 
 function resolveRelativePath(path: string, specifier: string): string {
   const parts: string[] = [];
+
   for (const part of [...path.split("/").slice(0, -1), ...specifier.split("/")]) {
     if (!part || part === ".") continue;
+
     if (part === "..") {
       if (parts.length === 0) {
         throw new Error(`Anywidget bundle import escapes the bundle root: ${specifier}`);
       }
+
       parts.pop();
     } else {
       parts.push(part);
     }
   }
+
   return normalizeModulePath(parts.join("/"));
 }
 
@@ -278,6 +335,7 @@ function normalizeModulePath(path: string): string {
   if (!isJavaScriptArtifactPath(path)) {
     throw new Error(`Unsupported anywidget bundle module path: ${path}`);
   }
+
   return path;
 }
 
@@ -285,14 +343,18 @@ function createUrl(state: ModuleLoaderState, source: string, path: string): stri
   const url = state.options.createModuleUrl
     ? state.options.createModuleUrl(source, path)
     : URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+
   state.moduleUrls.add(url);
+
   return url;
 }
 
 function discardUrl(state: ModuleLoaderState, path: string): void {
   const url = state.urls.get(path);
+
   if (!url) return;
   state.urls.delete(path);
+
   if (state.moduleUrls.delete(url)) revokeUrl(state, url);
 }
 
@@ -302,9 +364,11 @@ function revokeUrl(state: ModuleLoaderState, url: string): void {
 }
 
 function moduleLoaderRegistry(): LoaderRegistry {
+  // SAFETY: This versioned symbol is owned by the loader registry in this realm.
   const global = globalThis as typeof globalThis & {
     [LOADER_REGISTRY_SYMBOL]?: LoaderRegistry;
   };
+
   return (global[LOADER_REGISTRY_SYMBOL] ??= new Map());
 }
 
@@ -320,6 +384,6 @@ function assertActive(state: ModuleLoaderState): void {
   }
 }
 
-async function importModuleUrl(url: string): Promise<unknown> {
+async function importModuleUrl(url: string): Promise<object> {
   return await import(/* @vite-ignore */ url);
 }

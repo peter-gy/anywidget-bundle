@@ -1,6 +1,6 @@
 VP := pnpm exec vp
 
-.PHONY: build check format test
+.PHONY: build check format test e2e
 
 build:
 	$(VP) run -F './apps/*' -F './packages/*' build
@@ -9,15 +9,21 @@ build:
 check:
 	$(VP) check
 	$(VP) run -r typecheck
-	uv run ruff format --check
-	uv run ruff check
-	uv run ty check
-	uv run pyrefly check
+	pnpm check:knip
+	uv lock --check
+	uv run --frozen ruff format --check
+	uv run --frozen ruff check
+	uv run --frozen ty check
+	uv run --frozen pyrefly check
 
 format:
 	$(VP) fmt
-	uv run ruff format
+	uv run --frozen ruff format
 
 test:
 	$(VP) run -F './packages/*' test
-	uv run pytest
+	uv run --frozen pytest
+	$(MAKE) e2e
+
+e2e:
+	pnpm --filter @anywidget-bundle/e2e test:e2e

@@ -18,4 +18,6 @@ class WeatherWidget(BundledWidget):
 
 Package the complete generated `static` directory with the widget. It contains `anywidget.json`, the bootstrap, and every module Python may serve.
 
+Use the `anywidget-bundle` Hatch build hook to validate that directory during packaging. Observe `widget.bundle_status` for browser loading and lifecycle failures, including errors raised before the application loads.
+
 See the [documentation](https://peter-gy.github.io/anywidget-bundle/) for the build and Python APIs.

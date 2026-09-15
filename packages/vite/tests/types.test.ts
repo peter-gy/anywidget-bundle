@@ -9,15 +9,16 @@ describe("AnyWidgetBundleAppModule export", () => {
       { render: () => undefined },
       () => ({ render: () => undefined }),
       async () => ({ initialize: () => undefined }),
-    ] satisfies AnyWidgetBundleAppModule[];
+    ] satisfies AnyWidgetBundleAppModule<{}>[];
 
     expect(definitions).toHaveLength(5);
   });
 
   test("rejects definitions outside the bundle lifecycle contract", () => {
     // @ts-expect-error A bundle app must provide initialize or render.
-    const empty: AnyWidgetBundleAppModule = {};
-    const objectResult: AnyWidgetBundleAppModule = {
+    const empty: AnyWidgetBundleAppModule<{}> = {};
+
+    const objectResult: AnyWidgetBundleAppModule<{}> = {
       // @ts-expect-error Bundle initialization cannot return an object.
       initialize: () => ({ ready: true }),
     };

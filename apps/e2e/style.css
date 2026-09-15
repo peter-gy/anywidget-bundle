@@ -1,0 +1,6 @@
+.bundle-fixture {
+  display: flex;
+  gap: 1rem;
+  padding: 8px;
+  background-image: url("./pixel.svg");
+}

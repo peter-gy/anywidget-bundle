@@ -31,6 +31,12 @@ Documentation = "https://peter-gy.github.io/anywidget-bundle/"
 Issues = "https://github.com/peter-gy/anywidget-bundle/issues"
 Source = "https://github.com/peter-gy/anywidget-bundle"
 
+[project.optional-dependencies]
+build = ["hatchling>=1.31"]
+
+[project.entry-points.hatch]
+anywidget-bundle = "anywidget_bundle._hatch"
+
 [tool.hatch.build]
 only-packages = true
 

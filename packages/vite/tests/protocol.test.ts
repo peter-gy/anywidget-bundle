@@ -18,6 +18,7 @@ describe("bundle module protocol", () => {
       ]),
       { delays: { "chunks/first.js": 10, "chunks/second.js": 0 } },
     );
+
     const controller = trackedController();
     const reader = createModuleReader(backend.model, controller.signal);
 
@@ -37,6 +38,7 @@ describe("bundle module protocol", () => {
       configurable: true,
       value: undefined,
     });
+
     try {
       const backend = respondingModel(new Map([["chunks/app.js", "source"]]));
       const reader = createModuleReader(backend.model, trackedController().signal);
@@ -70,6 +72,7 @@ describe("bundle module protocol", () => {
         ],
       ]),
     );
+
     const reader = createModuleReader(backend.model, trackedController().signal);
 
     await expect(reader.read("chunks/app.js")).rejects.toMatchObject({ code: "read_failed" });
@@ -86,6 +89,7 @@ describe("bundle module protocol", () => {
     const backend = respondingModel(new Map([["chunks/app.js", "source"]]), {
       buffers: [sourceBuffer("first"), sourceBuffer("second")],
     });
+
     const reader = createModuleReader(backend.model, trackedController().signal);
 
     await expect(reader.read("chunks/app.js")).rejects.toMatchObject({ code: "invalid_response" });
@@ -93,14 +97,17 @@ describe("bundle module protocol", () => {
 
   test("rejects module source that is not valid UTF-8", async () => {
     const invalidBytes = Uint8Array.from([0xc3, 0x28]);
+
     const invalidSource = new DataView(
       invalidBytes.buffer,
       invalidBytes.byteOffset,
       invalidBytes.byteLength,
     );
+
     const backend = respondingModel(new Map([["chunks/app.js", "source"]]), {
       buffers: [invalidSource],
     });
+
     const reader = createModuleReader(backend.model, trackedController().signal);
 
     await expect(reader.read("chunks/app.js")).rejects.toMatchObject({ code: "invalid_source" });
@@ -110,6 +117,7 @@ describe("bundle module protocol", () => {
     const backend = respondingModel(new Map([["chunks/app.js", "source"]]), {
       responsePath: "chunks/other.js",
     });
+
     const reader = createModuleReader(backend.model, trackedController().signal);
 
     await expect(reader.read("chunks/app.js")).rejects.toMatchObject({ code: "path_mismatch" });
@@ -117,11 +125,14 @@ describe("bundle module protocol", () => {
 
   test("times out missing responses", async () => {
     vi.useFakeTimers();
+
     try {
       const backend = respondingModel(new Map(), { respond: false });
+
       const reader = createModuleReader(backend.model, trackedController().signal, {
         timeoutMs: 25,
       });
+
       const timedOut = expect(reader.read("chunks/app.js")).rejects.toMatchObject({
         code: "timeout",
       });
@@ -137,5 +148,6 @@ describe("bundle module protocol", () => {
 function trackedController(): AbortController {
   const controller = new AbortController();
   controllers.push(controller);
+
   return controller;
 }

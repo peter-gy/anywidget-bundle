@@ -1,12 +1,16 @@
-import type { AnyModel, Experimental, Host } from "@anywidget/types";
+import { isCallable, isString, isObject } from "../src/guards";
+import type { AnyModel, Experimental, Host, Initialize, Render } from "@anywidget/types";
 import { init, parse } from "es-module-lexer/minimal";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { build, createServer, normalizePath, type Plugin, type ViteDevServer } from "vite";
-import { build as standardBuild, type Plugin as StandardPlugin } from "vite-standard";
 import anywidgetBundle, { type AnyWidgetBundleOptions } from "../src/index";
+
+type BuiltWidgetDefinition = { initialize: Initialize; render: Render };
+
+type BuiltWidgetModule = { default: () => BuiltWidgetDefinition | Promise<BuiltWidgetDefinition> };
 
 type Manifest = {
   version: number;
@@ -25,6 +29,21 @@ afterEach(async () => {
 });
 
 describe("anywidgetBundle", () => {
+  test.each(["javascript", "css"])(
+    "rejects public assets referenced from %s before packaging",
+    async (kind) => {
+      const fixture = await createFixture({
+        "app.ts":
+          kind === "javascript"
+            ? 'import icon from "/icon.svg"; export default { render({el}) {el.textContent = icon;} };'
+            : 'import "./style.css"; export default {render() {}};',
+        "style.css": '.widget { background: url("/icon.svg"); }',
+        "public/icon.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      });
+
+      await expect(buildFixture(fixture)).rejects.toThrow("cannot use a public directory");
+    },
+  );
   test("builds a manifest-backed module graph and optional CSS", async () => {
     const fixture = await createFixture({
       "app.ts": `
@@ -79,21 +98,22 @@ describe("anywidgetBundle", () => {
     const requests: { path?: unknown }[] = [];
     const controller = new AbortController();
     const moduleUrl = `data:text/javascript;base64,${Buffer.from(entry).toString("base64")}#${Date.now()}`;
-    const built = (await import(/* @vite-ignore */ moduleUrl)) as {
-      default: () => Promise<{
-        initialize?(props: unknown): unknown;
-      }>;
-    };
+
+    const built: BuiltWidgetModule = await import(/* @vite-ignore */ moduleUrl);
+
     const definition = await built.default();
+
     const cleanup = definition.initialize?.({
       experimental: createExperimental(),
       model: createModel((content) => requests.push(content)),
       signal: controller.signal,
     });
+
     expect(cleanup).toEqual(expect.any(Function));
-    await expect.poll(() => requests[0]?.path).toBe(manifest.app);
+    await expect.poll(() => requests.find((request) => request.path)?.path).toBe(manifest.app);
     controller.abort();
-    if (typeof cleanup === "function") await cleanup();
+
+    if (isCallable(cleanup)) await cleanup();
   });
 
   test("records a CSS-free bundle explicitly", async () => {
@@ -120,6 +140,7 @@ describe("anywidgetBundle", () => {
       "lazy.ts": `export const value = 42;`,
       "style.css": `.widget { color: red; }`,
     });
+
     const config = {
       build: { emptyOutDir: false },
       configFile: false as const,
@@ -132,6 +153,7 @@ describe("anywidgetBundle", () => {
     const firstManifest = await readManifest(fixture.outDir);
     expect(firstManifest.style).toBe("widget.css");
     const staleChunk = firstManifest.modules.find((path) => path !== firstManifest.app);
+
     if (!staleChunk) throw new Error("Expected a split chunk in the first build.");
     expect((await stat(join(fixture.outDir, "widget.css"))).isFile()).toBe(true);
     expect((await stat(join(fixture.outDir, staleChunk))).isFile()).toBe(true);
@@ -172,36 +194,6 @@ describe("anywidgetBundle", () => {
     });
 
     expect((await readManifest(fixture.outDir)).modules).toEqual(["chunks/app.js"]);
-  });
-
-  test("builds split imports with standard Vite", async () => {
-    const fixture = await createFixture({
-      "app.ts": `
-        export default {
-          async render({ el }) {
-            const lazy = await import("./lazy.ts");
-            el.textContent = lazy.label;
-          },
-        };
-      `,
-      "lazy.ts": `export const label = "standard-vite";`,
-    });
-
-    await standardBuild({
-      configFile: false,
-      logLevel: "silent",
-      plugins: [
-        anywidgetBundle({
-          app: fixture.app,
-          outDir: fixture.outDir,
-        }) as unknown as StandardPlugin,
-      ],
-      root: fixture.root,
-    });
-
-    const manifest = await readManifest(fixture.outDir);
-    expect(manifest.modules[0]).toBe("chunks/app.js");
-    expect(manifest.modules.length).toBeGreaterThan(1);
   });
 
   test("rejects emitted files outside the JavaScript graph and widget stylesheet", async () => {
@@ -276,7 +268,9 @@ describe("anywidgetBundle", () => {
         render({ el }) { el.textContent = "development"; return () => undefined; },
       };`,
     });
+
     const devEntry = "/@weather-widget/entry";
+
     const server = await createServer({
       configFile: false,
       logLevel: "silent",
@@ -284,10 +278,12 @@ describe("anywidgetBundle", () => {
       root: fixture.root,
       server: { middlewareMode: true },
     });
+
     const modelController = new AbortController();
     const viewController = new AbortController();
     let disposeModel: (() => void | Promise<void>) | undefined;
     let disposeView: (() => void | Promise<void>) | undefined;
+
     try {
       const transformed = await server.transformRequest(`${devEntry}?anywidget`);
       expect(transformed?.code).toContain("/app.ts");
@@ -297,34 +293,38 @@ describe("anywidgetBundle", () => {
       expect(transformed?.code).toContain("entry.update");
       expect(transformed?.code).toContain("entry.dispose");
 
-      const loaded = (await server.ssrLoadModule(`${devEntry}?anywidget`)) as {
-        default: () => Promise<{
-          initialize(props: unknown): unknown;
-          render(props: unknown): unknown;
-        }>;
-      };
+      const loaded = await server.ssrLoadModule(`${devEntry}?anywidget`);
+
+      if (!isBuiltWidgetModule(loaded)) throw new Error("Expected a generated widget module");
+
       const definition = await loaded.default();
       const model = createModel(() => {});
       const experimental = createExperimental();
+
       const initialized = await definition.initialize({
         model,
         signal: modelController.signal,
         experimental,
       });
-      if (typeof initialized === "function") {
-        disposeModel = initialized as () => void | Promise<void>;
+
+      if (isCallable(initialized)) {
+        disposeModel = initialized;
       }
-      const el = { textContent: "" };
+
+      const el = document.createElement("div");
+
       const rendered = await definition.render({
         model,
         el,
         signal: viewController.signal,
         experimental,
-        host: createHost(model),
+        host: createHost(),
       });
-      if (typeof rendered === "function") {
-        disposeView = rendered as () => void | Promise<void>;
+
+      if (isCallable(rendered)) {
+        disposeView = rendered;
       }
+
       expect(el.textContent).toBe("development");
     } finally {
       try {
@@ -347,6 +347,7 @@ describe("anywidgetBundle", () => {
     const appSpecifier = "virtual:fixture-app";
     const appId = "\0virtual:fixture-app";
     const browserAppId = "/@id/__x00__virtual:fixture-app";
+
     const server = await createServer({
       configFile: false,
       root: fixture.root,
@@ -373,6 +374,7 @@ describe("anywidgetBundle", () => {
     const app = join(appRoot, "app.ts");
     await writeFile(app, `export default { render() {} };`, "utf8");
     const devEntry = "/@outside-widget/entry";
+
     const server = await createServer({
       configFile: false,
       root: fixture.root,
@@ -385,6 +387,7 @@ describe("anywidgetBundle", () => {
 
     try {
       const resolvedApp = await server.pluginContainer.resolveId(app);
+
       if (!resolvedApp) throw new Error(`Vite did not resolve ${app}.`);
       const browserAppId = `/@fs/${normalizePath(resolvedApp.id).replace(/^\/+/, "")}`;
       const acceptedApp = await acceptedDevelopmentApp(server, devEntry);
@@ -401,6 +404,7 @@ describe("anywidgetBundle", () => {
     const appSpecifier = "virtual:windows-app";
     const appId = "D:/shared/widgets/app.ts";
     const browserAppId = `/@fs/${appId}`;
+
     const server = await createServer({
       configFile: false,
       root: fixture.root,
@@ -424,9 +428,11 @@ describe("anywidgetBundle", () => {
     "rejects a filesystem app path containing %s in build and development",
     async (delimiter) => {
       const appName = `app${delimiter}.ts`;
+
       const fixture = await createFixture({
         [appName]: `export default { render() {} };`,
       });
+
       const app = join(fixture.root, appName);
       const message = "app filesystem paths must not contain ? or #";
 
@@ -446,6 +452,7 @@ describe("anywidgetBundle", () => {
         plugins: [anywidgetBundle({ app, outDir: fixture.outDir })],
         server: { middlewareMode: true },
       });
+
       try {
         await expect(server.transformRequest("/@anywidget-bundle/entry?anywidget")).rejects.toThrow(
           message,
@@ -481,7 +488,8 @@ describe("anywidgetBundle", () => {
     ],
     [{ app: "app.ts", outDir: "dist", output: null }, "output must be an object"],
   ])("rejects invalid options %#", (options, message) => {
-    expect(() => anywidgetBundle(options as AnyWidgetBundleOptions)).toThrow(message);
+    // @ts-expect-error Exercise invalid JavaScript configuration at the public boundary.
+    expect(() => anywidgetBundle(options)).toThrow(message);
   });
 });
 
@@ -495,6 +503,7 @@ async function createFixture(files: Readonly<Record<string, string>>) {
       await writeFile(target, source, "utf8");
     }),
   );
+
   return { app: join(root, "app.ts"), outDir: join(root, "dist"), root };
 }
 
@@ -511,7 +520,7 @@ async function buildFixture(
 }
 
 async function readManifest(outDir: string): Promise<Manifest> {
-  return JSON.parse(await readFile(join(outDir, "anywidget.json"), "utf8")) as Manifest;
+  return JSON.parse(await readFile(join(outDir, "anywidget.json"), "utf8"));
 }
 
 function createModel(send: (content: { path?: unknown }) => void): AnyModel {
@@ -525,8 +534,8 @@ function createModel(send: (content: { path?: unknown }) => void): AnyModel {
     send,
     set() {},
     widget_manager: {
-      async get_model<T extends Record<string, unknown>>(): Promise<AnyModel<T>> {
-        return createModel(() => {}) as unknown as AnyModel<T>;
+      async get_model() {
+        throw new Error("This fixture has no child models.");
       },
     },
   };
@@ -534,21 +543,21 @@ function createModel(send: (content: { path?: unknown }) => void): AnyModel {
 
 function createExperimental(): Experimental {
   return {
-    async invoke<T>(): Promise<[T, DataView[]]> {
-      return [undefined as T, []];
+    async invoke() {
+      throw new Error("This fixture does not invoke commands.");
     },
   };
 }
 
-function createHost(model: AnyModel): Host {
+function createHost(): Host {
   return {
     async getModel() {
-      return model;
+      throw new Error("This fixture has no child models.");
     },
     async getWidget() {
       throw new Error("This fixture does not render child widgets.");
     },
-  } as Host;
+  };
 }
 
 async function developmentImportSpecifiers(
@@ -556,24 +565,31 @@ async function developmentImportSpecifiers(
   devEntry: string,
 ): Promise<(string | undefined)[]> {
   const resolved = await server.pluginContainer.resolveId(`${devEntry}?anywidget`);
+
   if (!resolved) throw new Error(`Vite did not resolve ${devEntry}.`);
   const loaded = await server.pluginContainer.load(resolved.id);
-  const source = typeof loaded === "string" ? loaded : loaded?.code;
-  if (typeof source !== "string") throw new Error(`Vite did not load ${devEntry}.`);
+  const source = isString(loaded) ? loaded : loaded?.code;
+
+  if (!isString(source)) throw new Error(`Vite did not load ${devEntry}.`);
   await init;
+
   return parse(source)[0].map((record) => record.n);
 }
 
 async function acceptedDevelopmentApp(server: ViteDevServer, devEntry: string) {
   const url = `${devEntry}?anywidget`;
   const transformed = await server.transformRequest(url);
+
   if (!transformed) throw new Error(`Vite did not transform ${devEntry}.`);
   const entryModule = await server.moduleGraph.getModuleByUrl(url);
   const [acceptedApp] = entryModule?.acceptedHmrDeps ?? [];
+
   if (!acceptedApp) throw new Error(`Vite did not register an HMR dependency for ${devEntry}.`);
+
   if (!entryModule?.importedModules.has(acceptedApp)) {
     throw new Error(`The HMR dependency for ${devEntry} is not its imported app module.`);
   }
+
   return acceptedApp;
 }
 
@@ -587,4 +603,8 @@ function fixtureAppPlugin(specifier: string, id: string): Plugin {
       if (resolvedId === id) return `export default { render() {} };`;
     },
   };
+}
+
+function isBuiltWidgetModule(value: unknown): value is BuiltWidgetModule {
+  return isObject(value) && "default" in value && isCallable(value.default);
 }

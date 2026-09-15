@@ -29,6 +29,8 @@ The consuming Python project packages the complete generated static directory in
 
 One model owns one request reader and one module graph. Static relative dependencies load before their importers, and literal relative dynamic imports re-enter the same loader. Views for the model therefore share JavaScript module identity.
 
+Sibling source reads run concurrently while URL construction remains serialized. Pre-evaluation failures can retry. Native evaluation failures stay cached with their dependency identities until model disposal.
+
 Model cleanup aborts pending requests, removes the custom-message listener, clears loader caches, and revokes generated object URLs. HTTP imports and computed dynamic imports continue through the browser.
 
 When `dev_server_env` selects a Vite server, `Bundle` returns the development entry URL and an empty stylesheet. The browser imports the application through Vite.
@@ -38,3 +40,9 @@ When `dev_server_env` selects a Vite server, `Bundle` returns the development en
 The bootstrap starts production module loading during `initialize`. It returns model teardown synchronously so custom-message responses can arrive, then invokes the application `initialize` hook after the app module resolves. Application initialization may return cleanup or `undefined`. Rendering waits for loading and initialization before it invokes the application `render` hook. Application cleanup owns model listeners registered by that lifecycle call, while the bundle removes its protocol listener by callback identity.
 
 This boundary requires anywidget 0.11 and `@anywidget/types` 0.4.
+
+`lifecycle.ts` owns the application lifecycle in production and development. Both entries return synchronously from host initialization. Generation cancellation happens before waiting for hot-update cleanup. Model and view controllers abort application resources on failures, while the original failure remains observable by subsequent render calls.
+
+Version 1 `anywidget-bundle:status` messages carry lifecycle state and structured errors to the Python `bundle_status` trait. Reporting starts before application loading, so the application is not responsible for reporting its own import failure.
+
+The Python package registers an optional Hatch build hook that validates a consumer's complete artifact tree before archive creation. The hook uses the same `Bundle.validate()` contract as widget construction.

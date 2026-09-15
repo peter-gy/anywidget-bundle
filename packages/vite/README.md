@@ -23,7 +23,7 @@ export default {
   render({ el }) {
     el.textContent = "ready";
   },
-} satisfies AnyWidgetBundleApp;
+} satisfies AnyWidgetBundleApp<{}>;
 ```
 
 Each build writes:
