@@ -7,7 +7,9 @@ import anywidgetBundle from "anywidget-bundle";
 import { build, createServer } from "vite";
 
 const root = await mkdtemp(join(tmpdir(), "anywidget-bundle-node-"));
+
 const app = join(root, "app.js");
+
 const outDir = join(root, "dist");
 
 await writeFile(
@@ -23,7 +25,9 @@ await writeFile(
   `,
   "utf8",
 );
+
 await writeFile(join(root, "lazy.js"), `export const label = "ready";\n`, "utf8");
+
 await writeFile(join(root, "widget.css"), `.widget { color: rebeccapurple; }\n`, "utf8");
 
 await build({
@@ -34,6 +38,7 @@ await build({
 });
 
 const manifest = JSON.parse(await readFile(join(outDir, "anywidget.json"), "utf8"));
+
 assert.deepEqual(
   {
     version: manifest.version,
@@ -48,19 +53,27 @@ assert.deepEqual(
     style: "widget.css",
   },
 );
+
 assert.ok(Array.isArray(manifest.modules));
+
 assert.equal(manifest.modules[0], manifest.app);
+
 assert.ok(manifest.modules.length >= 2);
+
 assert.ok(
   manifest.modules
     .slice(1)
     .every((modulePath) => /^chunks\/chunk-[A-Za-z0-9_-]+\.js$/.test(modulePath)),
 );
+
 assert.ok(manifest.modules.slice(1).every((modulePath) => !modulePath.includes("lazy")));
 
 const bootstrap = await readFile(join(outDir, manifest.entry), "utf8");
+
 assert.ok(Buffer.byteLength(bootstrap) < 64 * 1024);
+
 assert.doesNotMatch(bootstrap, /(?:\bfrom\s*|\bimport\s*\(\s*)["']/);
+
 assert.doesNotMatch(bootstrap, /rebeccapurple|el\.textContent/);
 
 await Promise.all(
@@ -68,9 +81,11 @@ await Promise.all(
     assert.ok((await stat(join(outDir, modulePath))).isFile());
   }),
 );
+
 assert.ok((await stat(join(outDir, manifest.style))).isFile());
 
 const devEntry = "/@compatibility-widget/entry";
+
 const server = await createServer({
   configFile: false,
   logLevel: "silent",
@@ -78,19 +93,26 @@ const server = await createServer({
   root,
   server: { middlewareMode: true },
 });
+
 const modelController = new AbortController();
+
 const viewController = new AbortController();
+
 let disposeModel;
+
 let disposeView;
+
 try {
   const loaded = await server.ssrLoadModule(`${devEntry}?anywidget`);
   const definition = await loaded.default();
   const model = createModel();
+
   const experimental = {
     async invoke() {
       return [undefined, []];
     },
   };
+
   disposeModel = await definition.initialize({
     model,
     signal: modelController.signal,
@@ -115,9 +137,9 @@ try {
 } finally {
   try {
     try {
-      if (typeof disposeView === "function") await disposeView();
+      await disposeView?.();
     } finally {
-      if (typeof disposeModel === "function") await disposeModel();
+      await disposeModel?.();
     }
   } finally {
     viewController.abort();

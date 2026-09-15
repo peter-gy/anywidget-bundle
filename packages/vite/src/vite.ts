@@ -1,4 +1,5 @@
-import { existsSync, realpathSync } from "node:fs";
+import { isString } from "./guards";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizePath, type Plugin, type UserConfig } from "vite";
@@ -53,15 +54,25 @@ type AssetInfo = {
 };
 
 const DEV_RUNTIME_ID = "virtual:anywidget-bundle/dev-runtime";
+
 const ENTRY_NAME = "index";
+
 const APP_ENTRY_NAME = "app";
+
 const MANIFEST_FILE = "anywidget.json";
+
 const DEFAULT_DEV_ENTRY = "/@anywidget-bundle/entry";
+
 const BUILD_APP_ID = "virtual:anywidget-bundle/app";
+
 const VITE_ID_PREFIX = "/@id/";
+
 const VITE_NULL_BYTE = "__x00__";
+
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:\//;
+
 const DEV_ENTRY_SEGMENT = /^[A-Za-z0-9._@-]+$/;
+
 const DEFAULT_OUTPUT = {
   entry: "index.js",
   app: "chunks/app.js",
@@ -70,6 +81,7 @@ const DEFAULT_OUTPUT = {
 
 export default function anywidgetBundle(rawOptions: AnyWidgetBundleOptions): Plugin {
   const options = resolveOptions(rawOptions);
+
   return bundlePlugin(options);
 }
 
@@ -81,16 +93,30 @@ function bundlePlugin(options: BundleOptions): Plugin {
   // Generated source imports a browser-form ID. Keep the resolver's original
   // ID so virtual and out-of-root apps re-enter Vite through the same module.
   const developmentAppIds = new Map<string, string>();
+
   return {
     name: "anywidget-bundle",
     config(_config, env) {
       command = env.command;
+
       return bundleConfig(options, env.command);
     },
     configResolved(config) {
       // Other config hooks can replace the plugin's build.outDir. Validate the
       // final Vite value before emptyOutDir can remove existing files.
       validateOutDir(config.root, config.build.outDir);
+
+      if (
+        command === "build" &&
+        config.publicDir &&
+        existsSync(config.publicDir) &&
+        readdirSync(config.publicDir).length
+      ) {
+        throw new Error(
+          "Anywidget bundle builds cannot use a public directory. Move assets beside the application and import them with relative paths, or set publicDir: false when those files belong to another application.",
+        );
+      }
+
       root = config.root;
     },
     async buildStart() {
@@ -100,10 +126,14 @@ function bundlePlugin(options: BundleOptions): Plugin {
     },
     resolveId(id) {
       if (id === DEV_RUNTIME_ID) return runtimeSourcePath("dev");
+
       if (id === BUILD_APP_ID) return buildAppId;
+
       if (isDevelopmentEntryRequest(id, options.devEntry)) return resolvedDevEntryId;
       const appId = developmentAppIds.get(id);
+
       if (appId) return appId;
+
       return null;
     },
     async load(id) {
@@ -112,14 +142,17 @@ function bundlePlugin(options: BundleOptions): Plugin {
         // pipeline while exposing a stable library entry name.
         return `export { default } from ${JSON.stringify(BUILD_APP_ID)};`;
       }
+
       if (id === resolvedDevEntryId) {
         const app = await resolveAppImport(this, options.app);
         validateResolvedAppImport(app);
         const browserApp = browserImport(app, root);
         developmentAppIds.clear();
         developmentAppIds.set(browserApp, app);
+
         return developmentEntrySource(browserApp);
       }
+
       return null;
     },
     // Run late so the manifest reflects the generated chunk graph. Python
@@ -129,13 +162,18 @@ function bundlePlugin(options: BundleOptions): Plugin {
       handler(_output, bundle) {
         if (command !== "build") return;
         const fail = (message: string): never => this.error(message);
+
         const chunks = Object.values(bundle).filter(
           (item): item is typeof item & ChunkInfo => item.type === "chunk",
         );
+
         const entry = chunks.find((chunk) => chunk.fileName === options.output.entry);
         const app = chunks.find((chunk) => chunk.fileName === options.output.app);
+
         if (!entry) this.error(`Missing generated anywidget entry ${options.output.entry}.`);
+
         if (!app) this.error(`Missing generated anywidget app ${options.output.app}.`);
+
         // anywidget evaluates entry from _esm. App and other chunks are fetched
         // through Python, so entry must remain self-contained.
         if (entry.imports.length || entry.dynamicImports.length) {
@@ -152,6 +190,7 @@ function bundlePlugin(options: BundleOptions): Plugin {
                 ? 1
                 : left.localeCompare(right),
           );
+
         validateModuleFiles(fail, modules, options.output.app);
         validateChunkReferences(fail, chunks, new Set(modules));
         validateStaticGraph(fail, chunks, new Set(modules));
@@ -159,16 +198,20 @@ function bundlePlugin(options: BundleOptions): Plugin {
         const assets = Object.values(bundle).filter(
           (item): item is typeof item & AssetInfo => item.type === "asset",
         );
+
         const style = validateAssets(fail, assets, options.output.style);
+
         const artifacts = [
           MANIFEST_FILE,
           options.output.entry,
           ...modules,
           ...(style ? [style] : []),
         ];
+
         if (artifactPathsConflict(artifacts)) {
           this.error("Generated anywidget bundle artifact paths must not collide.");
         }
+
         const manifest: BundleManifest = {
           version: 1,
           entry: options.output.entry,
@@ -176,6 +219,7 @@ function bundlePlugin(options: BundleOptions): Plugin {
           app: options.output.app,
           modules,
         };
+
         this.emitFile({
           type: "asset",
           fileName: MANIFEST_FILE,
@@ -260,6 +304,7 @@ function validateModuleFiles(
   app: string,
 ): void {
   if (!modules.includes(app)) error(`Bundle modules must include ${app}.`);
+
   for (const path of modules) {
     if (!isJavaScriptArtifactPath(path)) {
       error(`Unsupported anywidget bundle module path ${path}.`);
@@ -274,6 +319,7 @@ function validateChunkReferences(
 ): void {
   for (const chunk of chunks) {
     if (!modules.has(chunk.fileName)) continue;
+
     for (const dependency of [...chunk.imports, ...chunk.dynamicImports]) {
       if (!modules.has(dependency) && !isUrlImport(dependency)) {
         error(`Bundle module ${chunk.fileName} references unsupported module ${dependency}.`);
@@ -294,20 +340,27 @@ function validateStaticGraph(
   // The browser creates Blob URLs dependency-first. A static cycle has no first
   // URL that can be embedded, so reject it while the bundler exposes the graph.
   const graph = new Map(
-    chunks
-      .filter((chunk) => modules.has(chunk.fileName))
-      .map((chunk) => [chunk.fileName, chunk.imports.filter((path) => modules.has(path))] as const),
+    chunks.flatMap((chunk) =>
+      modules.has(chunk.fileName)
+        ? [[chunk.fileName, chunk.imports.filter((path) => modules.has(path))] as const]
+        : [],
+    ),
   );
+
   const visited = new Set<string>();
   const active = new Set<string>();
+
   const visit = (path: string) => {
     if (active.has(path)) error(`Static anywidget bundle import cycle includes ${path}.`);
+
     if (visited.has(path)) return;
     active.add(path);
+
     for (const dependency of graph.get(path) ?? []) visit(dependency);
     active.delete(path);
     visited.add(path);
   };
+
   for (const path of graph.keys()) visit(path);
 }
 
@@ -317,35 +370,44 @@ function validateAssets(
   styleFile: string,
 ): string | null {
   let style: string | null = null;
+
   for (const asset of assets) {
     if (asset.fileName !== styleFile) {
       error(`Unsupported emitted anywidget bundle asset ${asset.fileName}.`);
     }
+
     if (style) error(`The anywidget bundle emitted more than one ${styleFile}.`);
     style = styleFile;
   }
+
   return style;
 }
 
 function resolveOptions(options: AnyWidgetBundleOptions): BundleOptions {
   if (!isPlainObject(options)) throw new Error("anywidgetBundle options must be an object.");
+
   for (const key of Object.keys(options)) {
     if (key !== "app" && key !== "outDir" && key !== "devEntry" && key !== "output") {
       throw new Error(`anywidgetBundle ${key} is not supported.`);
     }
   }
-  if (typeof options.app !== "string" || options.app.length === 0) {
+
+  if (!isString(options.app) || options.app.length === 0) {
     throw new Error("anywidgetBundle app must be a non-empty Vite module ID.");
   }
-  if (typeof options.outDir !== "string" || options.outDir.length === 0) {
+
+  if (!isString(options.outDir) || options.outDir.length === 0) {
     throw new Error("anywidgetBundle outDir must be a non-empty directory path.");
   }
+
   const devEntry = options.devEntry === undefined ? DEFAULT_DEV_ENTRY : options.devEntry;
   validateDevEntry(devEntry);
-  const outputOptions: unknown = options.output;
+  const outputOptions = options.output;
+
   if (outputOptions !== undefined && !isPlainObject(outputOptions)) {
     throw new Error("anywidgetBundle output must be an object.");
   }
+
   if (outputOptions) {
     for (const key of Object.keys(outputOptions)) {
       if (key !== "entry" && key !== "app" && key !== "style") {
@@ -353,6 +415,7 @@ function resolveOptions(options: AnyWidgetBundleOptions): BundleOptions {
       }
     }
   }
+
   const output = {
     entry: validateOutputPath(
       "output.entry",
@@ -370,13 +433,16 @@ function resolveOptions(options: AnyWidgetBundleOptions): BundleOptions {
       isStylesheetArtifactPath,
     ),
   };
+
   if (artifactPathsConflict([MANIFEST_FILE, output.entry, output.app, output.style])) {
     throw new Error("anywidgetBundle output paths must not collide.");
   }
+
   // Keep split chunks beside the app entry and reuse its extension. The runtime
   // resolves emitted relative specifiers against these manifest paths.
   const slash = output.app.lastIndexOf("/");
   const directory = slash === -1 ? "" : output.app.slice(0, slash + 1);
+
   return {
     app: options.app,
     outDir: options.outDir,
@@ -388,7 +454,7 @@ function resolveOptions(options: AnyWidgetBundleOptions): BundleOptions {
 
 function validateDevEntry(value: string): void {
   if (
-    typeof value !== "string" ||
+    !isString(value) ||
     !value.startsWith("/") ||
     value.startsWith("//") ||
     value.length === 1 ||
@@ -411,6 +477,7 @@ function validateOutDir(root: string, outDir: string): void {
   const canonicalRoot = canonicalPath(root);
   const canonicalOutDir = canonicalPath(resolve(root, outDir));
   const rootFromOutDir = relative(canonicalOutDir, canonicalRoot);
+
   if (
     rootFromOutDir === "" ||
     (rootFromOutDir !== ".." &&
@@ -425,29 +492,34 @@ function validateOutDir(root: string, outDir: string): void {
 function canonicalPath(path: string): string {
   const missing: string[] = [];
   let existing = resolve(path);
+
   while (!existsSync(existing)) {
     const parent = dirname(existing);
+
     if (parent === existing) return resolve(path);
     missing.unshift(basename(existing));
     existing = parent;
   }
+
   return resolve(realpathSync.native(existing), ...missing);
 }
 
 function validateOutputPath(
   label: string,
-  value: unknown,
+  value: string,
   accepts: (value: string) => boolean,
 ): string {
-  if (typeof value !== "string" || !accepts(value)) {
+  if (!isString(value) || !accepts(value)) {
     throw new Error(`anywidgetBundle ${label} must be a safe relative bundle path.`);
   }
+
   return value;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isPlainObject<Value>(value: Value): value is Value & object {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
+
   return prototype === Object.prototype || prototype === null;
 }
 
@@ -456,7 +528,9 @@ async function resolveAppImport(
   app: string,
 ): Promise<string> {
   const direct = await context.resolve(app, undefined, { skipSelf: true });
+
   if (direct) return direct.id;
+
   return app;
 }
 
@@ -481,15 +555,22 @@ function browserImport(id: string, root: string): string {
   // Resolved filesystem and virtual IDs must be rendered as Vite browser
   // request forms before they are embedded in the development entry.
   const normalized = normalizePath(id);
+
   if (normalized.startsWith("\0"))
     return `${VITE_ID_PREFIX}${normalized.replace("\0", VITE_NULL_BYTE)}`;
+
   if (normalized.startsWith("/@fs/") || normalized.startsWith(VITE_ID_PREFIX)) return normalized;
+
   if (isAbsoluteFilePath(normalized)) {
     const relativePath = relativeToRoot(normalizePath(root), normalized);
+
     if (relativePath !== undefined) return `/${relativePath}`;
+
     return `/@fs/${normalized.replace(/^\/+/, "")}`;
   }
+
   if (normalized.startsWith("/") || normalized.includes(":")) return normalized;
+
   return `/${normalized}`;
 }
 
@@ -499,10 +580,13 @@ function isAbsoluteFilePath(path: string): boolean {
 
 function relativeToRoot(root: string, id: string): string | undefined {
   const path = WINDOWS_DRIVE_PATH.test(root) || WINDOWS_DRIVE_PATH.test(id) ? win32 : posix;
+
   if (!path.isAbsolute(root) || !path.isAbsolute(id)) return undefined;
   const relativePath = normalizePath(path.relative(root, id));
+
   if (path.isAbsolute(relativePath) || relativePath === ".." || relativePath.startsWith("../"))
     return undefined;
+
   return relativePath;
 }
 
@@ -515,5 +599,6 @@ function runtimeSourcePath(module: "app-entry" | "build" | "dev"): string {
   // different sibling extensions.
   const sourcePath = fileURLToPath(import.meta.url);
   const extension = sourcePath.endsWith(".ts") ? ".ts" : ".js";
+
   return normalizePath(join(dirname(sourcePath), `${module}${extension}`));
 }

@@ -1,0 +1,15 @@
+{
+  "name": "@anywidget-bundle/e2e",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "node prepare.mjs && playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

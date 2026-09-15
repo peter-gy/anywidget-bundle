@@ -51,11 +51,10 @@
     "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:",
-    "vite-standard": "catalog:"
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "vite": ">=8 || ^0.2.4"
+    "vite": ">=8 || ^0.2.4 || ^0.3.2"
   },
   "engines": {
     "node": ">=20.19.0"

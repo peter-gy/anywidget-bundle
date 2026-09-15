@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 
 const repository = "https://github.com/peter-gy/anywidget-bundle";
+
 const basePath = process.env.BASE_PATH?.replace(/\/$/, "");
 
 export default defineConfig({

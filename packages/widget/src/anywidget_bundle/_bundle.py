@@ -14,6 +14,7 @@ from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
 import anywidget
+import traitlets
 
 _DEFAULT_DEV_ENTRY = "/@anywidget-bundle/entry"
 _MANIFEST_FILE = "anywidget.json"
@@ -227,6 +228,7 @@ class BundledWidget(anywidget.AnyWidget):
 
     bundle: ClassVar[Bundle]
     include_bundle_css: ClassVar[bool] = True
+    bundle_status = traitlets.Dict(default_value={"state": "idle"}, read_only=True)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # AnyWidget snapshots instance-level _esm and _css when it creates their
@@ -245,7 +247,31 @@ class BundledWidget(anywidget.AnyWidget):
     ) -> None:
         # Custom messages share the widget comm. Leave envelopes owned by other
         # features untouched.
-        if not isinstance(content, Mapping) or content.get("type") != _REQUEST_TYPE:
+        if not isinstance(content, Mapping):
+            return
+        if content.get("type") == "anywidget-bundle:status":
+            if type(content.get("version")) is not int or content.get("version") != 1:
+                return
+            state = content.get("state")
+            if state not in ("loading", "ready", "error", "disposed"):
+                return
+            status: dict[str, Any] = {"state": state}
+            if state == "error":
+                error = content.get("error")
+                if not isinstance(error, Mapping) or error.get("phase") not in (
+                    "load",
+                    "initialize",
+                    "render",
+                ):
+                    return
+                if not all(isinstance(error.get(key), str) for key in ("name", "message", "stack")):
+                    return
+                status["error"] = {
+                    key: error.get(key) for key in ("phase", "name", "message", "stack")
+                }
+            self.set_trait("bundle_status", status)
+            return
+        if content.get("type") != _REQUEST_TYPE:
             return
 
         request_id = content.get("id")

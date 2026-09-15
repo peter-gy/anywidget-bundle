@@ -1,14 +1,12 @@
 import type { AnyModel, InitializeProps, Render } from "@anywidget/types";
 
-export type AnyWidgetState = Record<string, unknown>;
-
 type Cleanup = () => void | Promise<void>;
 
-export type AnyWidgetBundleInitialize<ModelState extends AnyWidgetState = AnyWidgetState> = (
+export type AnyWidgetBundleInitialize<ModelState extends Record<string, unknown>> = (
   props: InitializeProps<ModelState>,
 ) => void | Cleanup | Promise<void | Cleanup>;
 
-export type AnyWidgetBundleApp<ModelState extends AnyWidgetState = AnyWidgetState> =
+export type AnyWidgetBundleApp<ModelState extends Record<string, unknown>> =
   | {
       initialize: AnyWidgetBundleInitialize<ModelState>;
       render?: Render<ModelState>;
@@ -18,8 +16,8 @@ export type AnyWidgetBundleApp<ModelState extends AnyWidgetState = AnyWidgetStat
       render: Render<ModelState>;
     };
 
-export type AnyWidgetBundleAppModule<ModelState extends AnyWidgetState = AnyWidgetState> =
+export type AnyWidgetBundleAppModule<ModelState extends Record<string, unknown>> =
   | AnyWidgetBundleApp<ModelState>
   | (() => AnyWidgetBundleApp<ModelState> | Promise<AnyWidgetBundleApp<ModelState>>);
 
-export type AnyWidgetBundleModel = Pick<AnyModel<AnyWidgetState>, "off" | "on" | "send">;
+export type AnyWidgetBundleModel = Pick<AnyModel, "off" | "on" | "send">;

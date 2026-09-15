@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import anywidgetBundle, { type AnyWidgetBundleOptions } from "../src/index";
+import anywidgetBundle from "../src/index";
 
 type InvalidOptionsCase = {
   label: string;
-  overrides: Record<string, unknown>;
+  overrides: {
+    output: string | null | { entry?: string | null; app?: string; style?: string; entyr?: string };
+  };
   message: string;
 };
 
@@ -130,6 +132,8 @@ function expectInvalidOptions({ overrides, message }: InvalidOptionsCase): void 
     app: "src/widget.ts",
     outDir: "dist",
     ...overrides,
-  } as unknown as AnyWidgetBundleOptions;
+  };
+
+  // @ts-expect-error Exercise malformed output options from JavaScript consumers.
   expect(() => anywidgetBundle(options)).toThrow(message);
 }

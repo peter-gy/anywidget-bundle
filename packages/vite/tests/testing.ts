@@ -1,16 +1,26 @@
+import { isCallable, isString, isObject } from "../src/guards";
 import type { AnyModel, Experimental, Host, InitializeProps, RenderProps } from "@anywidget/types";
 
-export type TestState = Record<string, unknown>;
+export type TestState = { _source?: string };
+
 export type ModuleValue =
   | string
   | { error: { code: string; message: string } }
-  | (() => ModuleValue);
+  | (() => string | { error: { code: string; message: string } });
 
-type MessageHandler = (message: unknown, buffers: DataView[]) => void;
+type MessageHandler = Parameters<AnyModel<TestState>["on"]>[1];
+
+type ModuleResponse = {
+  type: string;
+  version: number;
+  id: string;
+  path: string;
+  error?: { code: string; message: string };
+};
 
 const experimental: Experimental = {
-  async invoke<T>(): Promise<[T, DataView[]]> {
-    return [undefined as T, []];
+  async invoke() {
+    throw new Error("This fixture does not invoke commands.");
   },
 };
 
@@ -24,34 +34,46 @@ const host: Host = {
 };
 
 export function createModel(initial: Partial<TestState>): AnyModel<TestState> {
-  const state = new Map<string, unknown>(Object.entries(initial));
-  const listeners = new Map<string, Set<() => void>>();
+  const state = { ...initial };
+  const listeners = new Map<string, Set<MessageHandler>>();
+
   return {
-    get(name: string) {
-      return state.get(name);
+    get(name) {
+      return state[name];
     },
-    set(name: string, value: unknown) {
-      state.set(name, value);
+    set(name, value) {
+      state[name] = value;
+
       for (const listener of listeners.get(`change:${name}`) ?? []) listener();
     },
     save_changes() {},
-    on(name: string, callback: () => void) {
+    send() {},
+    on(name: string, callback: MessageHandler) {
       const callbacks = listeners.get(name) ?? new Set();
       callbacks.add(callback);
       listeners.set(name, callbacks);
     },
-    off(name?: string | null, callback?: (() => void) | null) {
+    off(name?: string | null, callback?: MessageHandler | null) {
       if (name == null) {
         listeners.clear();
+
         return;
       }
+
       if (callback == null) {
         listeners.delete(name);
+
         return;
       }
+
       listeners.get(name)?.delete(callback);
     },
-  } as unknown as AnyModel<TestState>;
+    widget_manager: {
+      async get_model() {
+        throw new Error("This fixture has no child models.");
+      },
+    },
+  };
 }
 
 export function initializeProps(
@@ -82,26 +104,31 @@ export function respondingModel(
   const requested: string[] = [];
   let inFlight = 0;
   let maxInFlight = 0;
-  const model = {
+
+  const model: AnyModel<TestState> = {
+    ...createModel({}),
     on(name: string, callback: MessageHandler) {
       if (name === "msg:custom") listeners.add(callback);
     },
     off(name?: string | null, callback?: MessageHandler | null) {
       if (name !== "msg:custom") return;
+
       if (callback) listeners.delete(callback);
       else listeners.clear();
     },
-    send(content: unknown) {
+    send(content) {
       if (!isRequest(content)) return;
       requested.push(content.path);
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
+
       if (options.respond === false) return;
       globalThis.setTimeout(() => {
         inFlight -= 1;
         const configured = modules.get(content.path);
-        const value = typeof configured === "function" ? configured() : configured;
-        if (typeof value === "object" && value !== null && "error" in value) {
+        const value = isCallable(configured) ? configured() : configured;
+
+        if (isObject(value) && value !== null && "error" in value) {
           emit(
             {
               type: "anywidget-bundle:response",
@@ -112,9 +139,11 @@ export function respondingModel(
             },
             [],
           );
+
           return;
         }
-        const source = typeof value === "string" ? value : "";
+
+        const source = isString(value) ? value : "";
         emit(
           {
             type: "anywidget-bundle:response",
@@ -126,9 +155,9 @@ export function respondingModel(
         );
       }, options.delays?.[content.path] ?? 0);
     },
-  } as unknown as AnyModel<TestState>;
+  };
 
-  function emit(message: unknown, buffers: DataView[]) {
+  function emit(message: ModuleResponse, buffers: DataView[]) {
     for (const listener of listeners) listener(message, buffers);
   }
 
@@ -146,16 +175,21 @@ export function respondingModel(
 
 export function sourceBuffer(source: string): DataView {
   const bytes = new TextEncoder().encode(source);
+
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 function isRequest(value: unknown): value is { id: string; path: string } {
-  if (value === null || typeof value !== "object") return false;
-  const request = value as Record<string, unknown>;
+  if (value === null || !isObject(value)) return false;
+
   return (
-    request.type === "anywidget-bundle:request" &&
-    request.version === 1 &&
-    typeof request.id === "string" &&
-    typeof request.path === "string"
+    "type" in value &&
+    value.type === "anywidget-bundle:request" &&
+    "version" in value &&
+    value.version === 1 &&
+    "id" in value &&
+    isString(value.id) &&
+    "path" in value &&
+    isString(value.path)
   );
 }

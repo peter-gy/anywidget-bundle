@@ -93,3 +93,45 @@ Set the class-level `bundle` attribute to the widget's generated frontend direct
 The widget handles version 1 `anywidget-bundle:request` custom messages. Valid requests name an allowlisted module and receive its UTF-8 source in one binary buffer. Invalid request shapes and protocol versions receive structured errors. Other custom-message envelopes remain available to the bundle app.
 
 Set `include_bundle_css = False` on the widget class when the application owns stylesheet loading.
+
+### `BundledWidget.bundle_status` {#bundle-status}
+
+```python
+widget.bundle_status -> dict
+```
+
+A read-only trait containing the latest browser lifecycle report. It starts as `{"state": "idle"}`. Subsequent states are `loading`, `ready`, `error`, and `disposed`. `ready` means application initialization completed, before any view is rendered. Model teardown reports `disposed` when its communication channel remains available.
+
+An error report includes `error.phase` (`load`, `initialize`, or `render`), `error.name`, `error.message`, and `error.stack`. A render error describes the failed view. Other views may remain active. A later development generation starts with a fresh `loading` report.
+
+Observe reports before displaying the widget:
+
+```python
+widget = WeatherWidget()
+
+
+def report_bundle(change):
+    status = change["new"]
+    if status["state"] == "error":
+        print(status["error"]["message"])
+
+
+widget.observe(report_bundle, names="bundle_status")
+```
+
+Applications with readiness or request APIs can use error reports to reject pending work with the original bundle failure. The browser also reports the original error to its console.
+
+## Hatch build hook
+
+The `anywidget-bundle` Hatch hook calls `Bundle.validate()` before wheel and source-distribution builds. Configure the complete generated directory:
+
+```toml
+[build-system]
+requires = ["hatchling", "anywidget-bundle[build]"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.anywidget-bundle]
+directory = "src/weather_widget/static"
+```
+
+Use matching npm and Python bundle versions. The hook raises `BundleArtifactError` for invalid manifests, unsafe paths, or missing artifacts. Editable installs skip validation so the frontend can be built after workspace setup. Include the generated directory in the distribution as described in [getting started](./getting-started.md#package-the-frontend).

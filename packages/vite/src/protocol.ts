@@ -1,16 +1,20 @@
 import type { AnyWidgetBundleModel } from "./types";
 
 import { createBundleId } from "./id";
+import { isString } from "./guards";
 
 const PROTOCOL_VERSION = 1;
+
 const REQUEST_TYPE = "anywidget-bundle:request";
+
 const RESPONSE_TYPE = "anywidget-bundle:response";
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 type PendingRequest = {
   path: string;
   resolve(source: string): void;
-  reject(error: unknown): void;
+  reject(cause: unknown): void;
   timeout: ReturnType<typeof globalThis.setTimeout>;
 };
 
@@ -23,7 +27,7 @@ export type ModuleReaderOptions = {
   timeoutMs?: number;
 };
 
-export class BundleModuleRequestError extends Error {
+class BundleModuleRequestError extends Error {
   readonly code: string;
 
   constructor(code: string, message: string) {
@@ -43,17 +47,21 @@ export function createModuleReader(
 
   // Custom responses can arrive out of order on a shared model channel. Match
   // both request ID and echoed path before accepting source.
-  const onMessage = (message: unknown, buffers: DataView[]) => {
-    if (!isRecord(message) || message.type !== RESPONSE_TYPE || typeof message.id !== "string") {
+  const onMessage: Parameters<AnyWidgetBundleModel["on"]>[1] = (message, buffers: DataView[]) => {
+    if (!isResponseEnvelope(message)) {
       return;
     }
+
     const request = pending.get(message.id);
+
     if (!request) return;
     finish(message.id, () => {
-      if (message.version !== PROTOCOL_VERSION || typeof message.path !== "string") {
+      if (message.version !== PROTOCOL_VERSION || !isString(message.path)) {
         request.reject(invalidResponse(request.path));
+
         return;
       }
+
       if (message.path !== request.path) {
         request.reject(
           new BundleModuleRequestError(
@@ -61,20 +69,22 @@ export function createModuleReader(
             `Bundle module response path does not match ${request.path}.`,
           ),
         );
+
         return;
       }
+
       if (message.error !== undefined) {
-        if (
-          !isRecord(message.error) ||
-          typeof message.error.code !== "string" ||
-          typeof message.error.message !== "string"
-        ) {
+        if (!isModuleError(message.error)) {
           request.reject(invalidResponse(request.path));
+
           return;
         }
+
         request.reject(new BundleModuleRequestError(message.error.code, message.error.message));
+
         return;
       }
+
       if (buffers.length !== 1) {
         request.reject(
           new BundleModuleRequestError(
@@ -82,8 +92,10 @@ export function createModuleReader(
             `Bundle module ${request.path} must return one binary buffer.`,
           ),
         );
+
         return;
       }
+
       try {
         // Python keeps correlation metadata in JSON and sends source as one
         // binary buffer so strict UTF-8 decoding happens at this boundary.
@@ -103,6 +115,7 @@ export function createModuleReader(
   // failure, and abort paths may race.
   const finish = (id: string, complete: () => void) => {
     const request = pending.get(id);
+
     if (!request) return;
     pending.delete(id);
     globalThis.clearTimeout(request.timeout);
@@ -114,6 +127,7 @@ export function createModuleReader(
     disposed = true;
     signal.removeEventListener("abort", dispose);
     model.off("msg:custom", onMessage);
+
     for (const [id, request] of pending) {
       finish(id, () => request.reject(abortError()));
     }
@@ -121,12 +135,14 @@ export function createModuleReader(
 
   model.on("msg:custom", onMessage);
   signal.addEventListener("abort", dispose, { once: true });
+
   if (signal.aborted) dispose();
 
   return {
     read(path) {
       if (disposed || signal.aborted) return Promise.reject(abortError());
       const id = createBundleId();
+
       return new Promise<string>((resolve, reject) => {
         const timeout = globalThis.setTimeout(() => {
           finish(id, () =>
@@ -135,8 +151,10 @@ export function createModuleReader(
             ),
           );
         }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
         // Register before send because a model adapter may answer synchronously.
         pending.set(id, { path, resolve, reject, timeout });
+
         try {
           model.send({
             type: REQUEST_TYPE,
@@ -160,8 +178,34 @@ function invalidResponse(path: string): BundleModuleRequestError {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+interface ResponseEnvelope {
+  type: typeof RESPONSE_TYPE;
+  id: string;
+  version?: unknown;
+  path?: unknown;
+  error?: unknown;
+}
+
+function isResponseEnvelope(value: unknown): value is ResponseEnvelope {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === RESPONSE_TYPE &&
+    "id" in value &&
+    typeof value.id === "string"
+  );
+}
+
+function isModuleError(value: unknown): value is { code: string; message: string } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "code" in value &&
+    typeof value.code === "string" &&
+    "message" in value &&
+    typeof value.message === "string"
+  );
 }
 
 function abortError(): DOMException {

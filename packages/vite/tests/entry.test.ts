@@ -1,20 +1,24 @@
+import { isCallable } from "../src/guards";
 import type { AnyModel, AnyWidget } from "@anywidget/types";
 
 import { describe, expect, test, vi } from "vite-plus/test";
 
 import type { AnyWidgetBundleAppModule } from "../src/types";
 
-import { createAnyWidgetBundleEntry, instantiateAnyWidgetBundleApp } from "../src/entry";
+import { createAnyWidgetBundleEntry } from "../src/entry";
+import { instantiateAnyWidgetBundleApp } from "../src/lifecycle";
 import { createModel, initializeProps, renderProps, type TestState } from "./testing";
 
 describe("anywidget bundle entry", () => {
   test("loads and initializes one app per model before rendering its views", async () => {
     const initialize = vi.fn();
     const render = vi.fn();
+
     const loadApp = vi.fn((_model: AnyModel<TestState>, _signal: AbortSignal) => ({
       initialize,
       render,
     }));
+
     const model = createModel({});
     const modelSignal = new AbortController().signal;
     const definition = await widgetDefinition(createAnyWidgetBundleEntry<TestState>(loadApp));
@@ -35,13 +39,15 @@ describe("anywidget bundle entry", () => {
     expect(initialize.mock.calls[0]?.[0].model).toBe(model);
     expect(initialize.mock.calls[0]?.[0].signal.aborted).toBe(false);
     expect(render).toHaveBeenCalledTimes(2);
-    if (typeof modelCleanup === "function") await modelCleanup();
+
+    if (isCallable(modelCleanup)) await modelCleanup();
   });
 
   test("creates an independent app instance for each model", async () => {
     const loadApp = vi.fn((_model: AnyModel<TestState>, _signal: AbortSignal) => ({
       render: vi.fn(),
     }));
+
     const entry = createAnyWidgetBundleEntry<TestState>(loadApp);
     const firstModel = createModel({});
     const secondModel = createModel({});
@@ -57,9 +63,11 @@ describe("anywidget bundle entry", () => {
 
   test("returns render cleanup through the host lifecycle", async () => {
     const cleanup = vi.fn();
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => ({ render: () => cleanup })),
     );
+
     const model = createModel({});
     const signal = new AbortController().signal;
     await definition.initialize?.(initializeProps(model, signal));
@@ -68,7 +76,7 @@ describe("anywidget bundle entry", () => {
       renderProps(model, document.createElement("div"), signal),
     );
 
-    if (typeof viewCleanup !== "function") throw new Error("Expected a view cleanup function");
+    if (!isCallable(viewCleanup)) throw new Error("Expected a view cleanup function");
     await viewCleanup();
     expect(cleanup).toHaveBeenCalledOnce();
   });
@@ -76,57 +84,66 @@ describe("anywidget bundle entry", () => {
   test("returns initialization cleanup through the host lifecycle", async () => {
     const cleanup = vi.fn();
     const initialize = vi.fn(() => cleanup);
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => ({ initialize })),
     );
+
     const model = createModel({});
 
     const modelCleanup = definition.initialize?.(
       initializeProps(model, new AbortController().signal),
     );
+
     await vi.waitFor(() => expect(initialize).toHaveBeenCalledOnce());
 
-    if (typeof modelCleanup !== "function") throw new Error("Expected a model cleanup function");
+    if (!isCallable(modelCleanup)) throw new Error("Expected a model cleanup function");
     await modelCleanup();
     await modelCleanup();
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
-  test("owns lifecycle signals when a host omits them", async () => {
+  test("aborts application signals when callable cleanup runs", async () => {
     let initializeSignal: AbortSignal | undefined;
     let renderSignal: AbortSignal | undefined;
     const initializeCleanup = vi.fn();
     const renderCleanup = vi.fn();
     const model = createModel({});
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>((_model, signal) => {
         initializeSignal = signal;
+
         return {
           initialize(props) {
             initializeSignal = props.signal;
+
             return initializeCleanup;
           },
           render(props) {
             renderSignal = props.signal;
+
             return renderCleanup;
           },
         };
       }),
     );
-    const modelCleanup = definition.initialize?.({
-      ...initializeProps(model, new AbortController().signal),
-      signal: undefined,
-    } as unknown as Parameters<NonNullable<typeof definition.initialize>>[0]);
-    const viewCleanup = await definition.render?.({
-      ...renderProps(model, document.createElement("div"), new AbortController().signal),
-      signal: undefined,
-    } as unknown as Parameters<NonNullable<typeof definition.render>>[0]);
+
+    const modelCleanup = definition.initialize?.(
+      initializeProps(model, new AbortController().signal),
+    );
+
+    const viewCleanup = await definition.render?.(
+      renderProps(model, document.createElement("div"), new AbortController().signal),
+    );
 
     expect(initializeSignal?.aborted).toBe(false);
     expect(renderSignal?.aborted).toBe(false);
-    if (typeof modelCleanup !== "function" || typeof viewCleanup !== "function") {
-      throw new Error("Expected fallback lifecycle cleanup functions");
+
+    if (!isCallable(modelCleanup) || !isCallable(viewCleanup)) {
+      throw new Error("Expected lifecycle cleanup functions");
     }
+
     await viewCleanup();
     await modelCleanup();
 
@@ -155,6 +172,7 @@ describe("anywidget bundle entry", () => {
     let resolveApp: ((app: AnyWidgetBundleAppModule<TestState>) => void) | undefined;
     const initialize = vi.fn();
     const render = vi.fn();
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(
         () =>
@@ -163,11 +181,13 @@ describe("anywidget bundle entry", () => {
           }),
       ),
     );
+
     const model = createModel({});
 
     const modelCleanup = definition.initialize?.(
       initializeProps(model, new AbortController().signal),
     );
+
     expect(modelCleanup).toEqual(expect.any(Function));
     expect(initialize).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(resolveApp).toEqual(expect.any(Function)));
@@ -182,9 +202,11 @@ describe("anywidget bundle entry", () => {
 
   test("propagates app loading failures", async () => {
     const failure = new Error("chunk unavailable");
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => Promise.reject(failure)),
     );
+
     const model = createModel({});
     const signal = new AbortController().signal;
 
@@ -196,10 +218,13 @@ describe("anywidget bundle entry", () => {
 
   test("rejects object-valued initialization exports before rendering", async () => {
     const render = vi.fn();
+
     const app = {
       initialize: () => ({ ready: true }),
       render,
-    } as unknown as AnyWidgetBundleAppModule<TestState>;
+    };
+
+    // @ts-expect-error Exercise an invalid JavaScript initializer result.
     const definition = await widgetDefinition(createAnyWidgetBundleEntry<TestState>(() => app));
     const model = createModel({});
     const signal = new AbortController().signal;
@@ -213,9 +238,11 @@ describe("anywidget bundle entry", () => {
 
   test("propagates render failures", async () => {
     const failure = new Error("render failed");
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => ({ render: () => Promise.reject(failure) })),
     );
+
     const model = createModel({});
     const signal = new AbortController().signal;
     await definition.initialize?.(initializeProps(model, signal));
@@ -229,6 +256,7 @@ describe("anywidget bundle entry", () => {
     let resolveApp: ((app: AnyWidgetBundleAppModule<TestState>) => void) | undefined;
     const initialize = vi.fn();
     const controller = new AbortController();
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(
         () =>
@@ -237,14 +265,16 @@ describe("anywidget bundle entry", () => {
           }),
       ),
     );
+
     const modelCleanup = definition.initialize?.(
       initializeProps(createModel({}), controller.signal),
     );
 
-    controller.abort();
     await vi.waitFor(() => expect(resolveApp).toEqual(expect.any(Function)));
+    controller.abort();
     resolveApp?.({ initialize });
-    if (typeof modelCleanup === "function") await modelCleanup();
+
+    if (isCallable(modelCleanup)) await modelCleanup();
 
     expect(initialize).not.toHaveBeenCalled();
   });
@@ -252,21 +282,25 @@ describe("anywidget bundle entry", () => {
   test("runs late initialization cleanup once when model teardown wins", async () => {
     let resolveInitialize: ((cleanup: () => void) => void) | undefined;
     const cleanup = vi.fn();
+
     const initialize = vi.fn(
       () =>
         new Promise<() => void>((resolve) => {
           resolveInitialize = resolve;
         }),
     );
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => ({ initialize })),
     );
+
     const modelCleanup = definition.initialize?.(
       initializeProps(createModel({}), new AbortController().signal),
     );
+
     await vi.waitFor(() => expect(initialize).toHaveBeenCalledOnce());
 
-    if (typeof modelCleanup !== "function") throw new Error("Expected a model cleanup function");
+    if (!isCallable(modelCleanup)) throw new Error("Expected a model cleanup function");
     const disposal = modelCleanup();
     resolveInitialize?.(cleanup);
     await disposal;
@@ -278,6 +312,7 @@ describe("anywidget bundle entry", () => {
   test("does not render after model teardown", async () => {
     let resolveApp: ((app: AnyWidgetBundleAppModule<TestState>) => void) | undefined;
     const render = vi.fn();
+
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(
         () =>
@@ -286,16 +321,20 @@ describe("anywidget bundle entry", () => {
           }),
       ),
     );
+
     const model = createModel({});
+
     const modelCleanup = definition.initialize?.(
       initializeProps(model, new AbortController().signal),
     );
+
     await vi.waitFor(() => expect(resolveApp).toEqual(expect.any(Function)));
+
     const rendering = definition.render?.(
       renderProps(model, document.createElement("div"), new AbortController().signal),
     );
 
-    if (typeof modelCleanup !== "function") throw new Error("Expected a model cleanup function");
+    if (!isCallable(modelCleanup)) throw new Error("Expected a model cleanup function");
     const disposal = modelCleanup();
     resolveApp?.({ render });
     await Promise.all([rendering, disposal]);
@@ -308,7 +347,8 @@ describe("anywidget bundle entry", () => {
     [{}, "must provide initialize or render"],
   ])("rejects invalid widget definitions %#", async (definition, message) => {
     await expect(
-      instantiateAnyWidgetBundleApp(definition as unknown as AnyWidgetBundleAppModule<TestState>),
+      // @ts-expect-error Exercise invalid JavaScript definitions at the runtime boundary.
+      instantiateAnyWidgetBundleApp(definition),
     ).rejects.toThrow(message);
   });
 
@@ -316,6 +356,7 @@ describe("anywidget bundle entry", () => {
     const definition = await widgetDefinition(
       createAnyWidgetBundleEntry<TestState>(() => ({ render: vi.fn() })),
     );
+
     const model = createModel({});
 
     await expect(
@@ -327,5 +368,5 @@ describe("anywidget bundle entry", () => {
 });
 
 async function widgetDefinition(widget: AnyWidget<TestState>) {
-  return typeof widget === "function" ? await widget() : widget;
+  return isCallable(widget) ? await widget() : widget;
 }

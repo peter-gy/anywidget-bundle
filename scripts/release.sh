@@ -7,6 +7,7 @@ cd "$ROOT"
 VERSION_FILES=(
   package.json
   apps/docs/package.json
+  apps/e2e/package.json
   packages/vite/package.json
   packages/widget/pyproject.toml
   pnpm-lock.yaml
