@@ -1,6 +1,6 @@
 {
   "name": "anywidget-bundle",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Build manifest-backed anywidget module graphs with Vite.",
   "keywords": [
     "anywidget",
